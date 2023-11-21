@@ -1,8 +1,10 @@
 #pragma once
 
-#include "../allen_cahn/lib/file.h"
+#pragma warning(disable:4464)
+#include "../lib/file.h"
 #include "math.h"
 #include "gl.h"
+#pragma warning(default:4464)
 
 #define SHADER_UTIL_CHANEL "SHADER"
 
@@ -334,7 +336,7 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
     Error geomtery_error = {0};
 
     if(geometry_path.size > 0)
-        geomtery_error = file_read_entire(geometry_path, &vertex_source);
+        geomtery_error = file_read_entire(geometry_path, &geometry_source);
 
     Error compile_error = ERROR_OR(vertex_error) ERROR_OR(fragment_error) geomtery_error;
     if(error_is_ok(compile_error))
@@ -354,7 +356,10 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
             LOG_ERROR(SHADER_UTIL_CHANEL, "vertex:   \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(vertex_path), ERROR_PRINT(vertex_error));
             LOG_ERROR(SHADER_UTIL_CHANEL, "fragment: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(fragment_path), ERROR_PRINT(fragment_error));
             LOG_ERROR(SHADER_UTIL_CHANEL, "geometry: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(geometry_path), ERROR_PRINT(geomtery_error));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "error:\n");
+            log_group_push();
+                LOG_ERROR(SHADER_UTIL_CHANEL, STRING_FMT, STRING_PRINT(error_text));
+            log_group_pop();
         log_group_pop();
     }
 
@@ -369,11 +374,13 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
 
 Error render_shader_init_from_disk(Render_Shader* shader, String path)
 {
+    LOG_INFO("shader", "loading: " STRING_FMT, STRING_PRINT(path));
+
     PERF_COUNTER_START(c);
     Allocator* scratch = allocator_get_scratch();
     String_Builder error_text = {scratch};
     String_Builder source_text = {scratch};
-    
+
     String name = path_get_name_from_path(path);
     Error error = file_read_entire(path, &source_text);
     String source = string_from_builder(source_text);
@@ -400,6 +407,7 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
             LOG_ERROR(SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
         log_group_pop();
     }
+
 
     array_deinit(&vertex_source);
     array_deinit(&fragment_source);

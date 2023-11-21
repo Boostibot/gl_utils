@@ -1,7 +1,10 @@
 #pragma once
 
+
+#pragma warning(disable:4464)
 #include "gl.h"
-#include "../allen_cahn/lib/log.h"
+#include "../lib/log.h"
+#pragma warning(default:4464)
 
 #define DEBUG_OUTPUT_CHANEL "RENDER"
 
