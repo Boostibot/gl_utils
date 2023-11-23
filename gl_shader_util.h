@@ -2,6 +2,7 @@
 
 #pragma warning(disable:4464)
 #include "../lib/file.h"
+#include "../lib/hash_index.h"
 #include "math.h"
 #include "gl.h"
 #pragma warning(default:4464)
@@ -29,6 +30,20 @@ typedef enum {
 
 typedef struct Render_Shader
 {
+    Allocator* allocator;
+
+    // Uses 32bit hash to cache uniform locations.
+    // We dont do any hash colision resolutiion and instead
+    // check with check_probabiity by iterating over all 
+    // uniforms that there are no hash collisions. 
+    // This is about twice as fast as querrying using opengl.
+    //
+    // Should a collision occur we will simply change the uniform
+    // (or change the seed)
+    Hash_Index32 uniform_hash;
+    String_Builder_Array uniforms;
+    f64 check_probabiity;
+
     GLuint shader;
     String_Builder name;
     Shader_Type type;
@@ -46,8 +61,26 @@ void render_shader_deinit(Render_Shader* shader)
         glDeleteProgram(shader->shader);
     }
     array_deinit(&shader->name);
+    hash_index32_deinit(&shader->uniform_hash);
+    builder_array_deinit(&shader->uniforms);
     memset(shader, 0, sizeof(*shader));
 }
+
+
+void render_shader_preinit(Render_Shader* shader, Allocator* alloc, String name)
+{
+    render_shader_deinit(shader);
+
+    if(alloc == NULL)
+        alloc = allocator_get_default();
+
+    shader->allocator = alloc;
+    shader->check_probabiity = 1.0 / 10000;
+    shader->name = builder_from_string(name, alloc);
+    array_init(&shader->uniforms, alloc);
+    hash_index32_init(&shader->uniform_hash, alloc);
+}
+
 
 String translate_shader_error(u32 code, void* context)
 {
@@ -133,9 +166,9 @@ Error compute_shader_init(Render_Shader* shader, const char* source, String name
 
     if(error_is_ok(error))
     { 
+        render_shader_preinit(shader, NULL, name);
         shader->shader = program;
-        shader->name = builder_from_string(name, NULL);
-        shader->type = SHADER_TYPE_COMPUTE;
+        shader->type = SHADER_TYPE_RENDER;
     }
     else
     {
@@ -193,8 +226,8 @@ Error render_shader_init(Render_Shader* shader, const char* vertex, const char* 
 
     if(error_is_ok(out_error))
     {
+        render_shader_preinit(shader, NULL, name);
         shader->shader = shader_program;
-        shader->name = builder_from_string(name, NULL);
         shader->type = SHADER_TYPE_RENDER;
     }
     else
@@ -420,7 +453,6 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
 }
 
 static GLuint current_used_shader = 0;
-
 void render_shader_use(const Render_Shader* shader)
 {
     ASSERT(shader->shader != 0);
@@ -451,44 +483,51 @@ void compute_shader_dispatch(Render_Shader* compute_shader, isize size_x, isize 
 	glDispatchCompute(num_groups_x, num_groups_y, num_groups_z);
 }
 
-GLint render_shader_get_uniform_location(const Render_Shader* shader, const char* uniform)
+GLint render_shader_get_uniform_location(Render_Shader* shader, const char* uniform)
 {
     PERF_COUNTER_START(c);
-    render_shader_use(shader);
-    GLint location = glGetUniformLocation(shader->shader, uniform);
-    if(location == -1)
+    GLint location = 0;
+    String uniform_str = string_make(uniform);
+    u32 hash = hash32_murmur(uniform_str.data, uniform_str.size, 0);
+    isize found = hash_index32_find(shader->uniform_hash, hash);
+
+    if(found == -1)
     {
-        
-        //if the shader uniform is not found we log only 
-        //each 2^n th error message from this shader and uniform
-        //(unless shader name, uniform, and shader program have a hash colision
-        // but thats astronomically improbable)
+        render_shader_use(shader);
+        location = glGetUniformLocation(shader->shader, uniform);
+        if(location == -1)
+            LOG_ERROR("RENDER", "failed to find uniform %-25s shader: %s", uniform, shader->name.data);
 
-        String uniform_str = string_make(uniform);
-        u64 name_hash = hash64_murmur(shader->name.data, shader->name.size, 0);
-        u64 uniform_hash = hash64_murmur(uniform_str.data, uniform_str.size, 0);
-        u64 shader_hash = hash64(shader->shader);
-        u64 final_hash = name_hash ^ uniform_hash ^ shader_hash;
-
-        static Hash_Index64 error_hash_index = {0};
-        if(error_hash_index.allocator == NULL)
-        {
-            hash_index64_init(&error_hash_index, allocator_get_static());
-            hash_index64_reserve(&error_hash_index, 32);
-        }
-
-        isize found = hash_index64_find_or_insert(&error_hash_index, final_hash, 0);
-        u64* error_count = &error_hash_index.entries[found].value;
-        if(is_power_of_two_or_zero((*error_count)++))
-            LOG_ERROR("RENDER", "failed to find uniform %-25s shader: " STRING_FMT, uniform, STRING_PRINT(shader->name));
+        array_push(&shader->uniforms, builder_from_cstring(uniform, shader->allocator));
+        found = hash_index32_insert(&shader->uniform_hash, hash, location);
     }
+    else
+    {
+        location = shader->uniform_hash.entries[found].value;
+    }
+
+    #ifdef DO_ASSERTS
+    f64 random = random_f64();
+    if(random <= shader->check_probabiity)
+    {
+        //LOG_DEBUG("RENDER", "Checking uniform %-25s for collisions shader: %s", uniform, shader->name.data);
+        for(isize i = 0; i < shader->uniforms.size; i++)
+        {
+            String_Builder* curr_uniform = &shader->uniforms.data[i];
+            u32 curr_hash = hash32_murmur(curr_uniform->data, curr_uniform->size, 0);
+            if(curr_hash == hash && string_is_equal(string_from_builder(*curr_uniform), uniform_str) == false)
+                LOG_DEBUG("RENDER", "uniform %s hash coliding with uniform %s in shader %s", uniform, curr_uniform->data, shader->name.data);
+        }
+    }
+    #endif
+    
     PERF_COUNTER_END(c);
 
     return location;
 }
 
 
-bool render_shader_set_i32(const Render_Shader* shader, const char* name, i32 val)
+bool render_shader_set_i32(Render_Shader* shader, const char* name, i32 val)
 {
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1) 
@@ -498,7 +537,7 @@ bool render_shader_set_i32(const Render_Shader* shader, const char* name, i32 va
     return true;
 }
     
-bool render_shader_set_f32(const Render_Shader* shader, const char* name, f32 val)
+bool render_shader_set_f32(Render_Shader* shader, const char* name, f32 val)
 {
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
@@ -508,7 +547,7 @@ bool render_shader_set_f32(const Render_Shader* shader, const char* name, f32 va
     return true;
 }
 
-bool render_shader_set_vec3(const Render_Shader* shader, const char* name, Vec3 val)
+bool render_shader_set_vec3(Render_Shader* shader, const char* name, Vec3 val)
 {
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
@@ -518,7 +557,7 @@ bool render_shader_set_vec3(const Render_Shader* shader, const char* name, Vec3 
     return true;
 }
 
-bool render_shader_set_mat4(const Render_Shader* shader, const char* name, Mat4 val)
+bool render_shader_set_mat4(Render_Shader* shader, const char* name, Mat4 val)
 {
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
@@ -528,7 +567,7 @@ bool render_shader_set_mat4(const Render_Shader* shader, const char* name, Mat4 
     return true;
 }
     
-bool render_shader_set_mat3(const Render_Shader* shader, const char* name, Mat3 val)
+bool render_shader_set_mat3(Render_Shader* shader, const char* name, Mat3 val)
 {
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
