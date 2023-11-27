@@ -529,6 +529,7 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
 
 bool render_shader_set_i32(Render_Shader* shader, const char* name, i32 val)
 {
+    render_shader_use(shader);
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1) 
         return false;
@@ -539,6 +540,7 @@ bool render_shader_set_i32(Render_Shader* shader, const char* name, i32 val)
     
 bool render_shader_set_f32(Render_Shader* shader, const char* name, f32 val)
 {
+    render_shader_use(shader);
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
         return false;
@@ -549,6 +551,7 @@ bool render_shader_set_f32(Render_Shader* shader, const char* name, f32 val)
 
 bool render_shader_set_vec3(Render_Shader* shader, const char* name, Vec3 val)
 {
+    render_shader_use(shader);
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
         return false;
@@ -559,6 +562,7 @@ bool render_shader_set_vec3(Render_Shader* shader, const char* name, Vec3 val)
 
 bool render_shader_set_mat4(Render_Shader* shader, const char* name, Mat4 val)
 {
+    render_shader_use(shader);
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
         return false;
@@ -569,6 +573,7 @@ bool render_shader_set_mat4(Render_Shader* shader, const char* name, Mat4 val)
     
 bool render_shader_set_mat3(Render_Shader* shader, const char* name, Mat3 val)
 {
+    render_shader_use(shader);
     GLint location = render_shader_get_uniform_location(shader, name);
     if(location == -1)
         return false;
