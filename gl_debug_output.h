@@ -6,27 +6,44 @@
 #include "../lib/log.h"
 #pragma warning(default:4464)
 
-#define DEBUG_OUTPUT_CHANEL "RENDER"
+#define DEBUG_OUTPUT_CHANEL "opengl"
 
+INTERNAL const char* gl_translate_error(u32 code, void* context)
+{
+    (void) context;
+    switch (code)
+    {
+        case GL_INVALID_ENUM:                  return "INVALID_ENUM";
+        case GL_INVALID_VALUE:                 return "INVALID_VALUE";
+        case GL_INVALID_OPERATION:             return "INVALID_OPERATION";
+        case GL_STACK_OVERFLOW:                return "STACK_OVERFLOW";
+        case GL_STACK_UNDERFLOW:               return "STACK_UNDERFLOW";
+        case GL_OUT_OF_MEMORY:                 return "OUT_OF_MEMORY";
+        case GL_INVALID_FRAMEBUFFER_OPERATION: return "INVALID_FRAMEBUFFER_OPERATION";
+        default:                               return "UNKNOWN_ERROR";
+    }
+}
+
+INTERNAL u32 gl_error_module()
+{
+    static u32 error_module = 0;
+    if(error_module == 0)
+        error_module = error_system_register_module(gl_translate_error, "opengl", NULL);
+
+    return error_module;
+}
+
+Error gl_get_last_error()
+{
+    return error_make(gl_error_module(), glGetError());
+}
 
 GLenum _gl_check_error(const char *file, int line)
 {
     GLenum errorCode = 0;
     while ((errorCode = glGetError()) != GL_NO_ERROR)
     {
-        const char* error = "";
-        switch (errorCode)
-        {
-            case GL_INVALID_ENUM:                  error = "INVALID_ENUM"; break;
-            case GL_INVALID_VALUE:                 error = "INVALID_VALUE"; break;
-            case GL_INVALID_OPERATION:             error = "INVALID_OPERATION"; break;
-            case GL_STACK_OVERFLOW:                error = "STACK_OVERFLOW"; break;
-            case GL_STACK_UNDERFLOW:               error = "STACK_UNDERFLOW"; break;
-            case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
-            case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
-            default:                               error = "UNKNOWN_ERROR"; break;
-        }
-
+        const char* error = gl_translate_error(errorCode, NULL);
         LOG_ERROR(DEBUG_OUTPUT_CHANEL, "GL error %s | %s (%d)", error, file, line);
     }
     return errorCode;
@@ -84,7 +101,6 @@ void gl_debug_output_func(GLenum source,
     };
     log_group_pop();
 }
-
 
 void gl_debug_output_enable()
 {

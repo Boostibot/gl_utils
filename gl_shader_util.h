@@ -82,18 +82,18 @@ void render_shader_preinit(Render_Shader* shader, Allocator* alloc, String name)
 }
 
 
-String translate_shader_error(u32 code, void* context)
+const char* translate_shader_error(u32 code, void* context)
 {
     (void) context;
     switch(code)
     {
-        case SHADER_ERROR_OK:               return STRING("SHADER_ERROR_OK");
-        case SHADER_ERROR_COMPILE_VERTEX:   return STRING("SHADER_ERROR_COMPILE_VERTEX");
-        case SHADER_ERROR_COMPILE_FRAGMENT: return STRING("SHADER_ERROR_COMPILE_FRAGMENT");
-        case SHADER_ERROR_COMPILE_GEOMETRY: return STRING("SHADER_ERROR_COMPILE_GEOMETRY");
-        case SHADER_ERROR_COMPILE_COMPUTE:  return STRING("SHADER_ERROR_COMPILE_COMPUTE");
-        case SHADER_ERROR_LINK:             return STRING("SHADER_ERROR_LINK");
-        default:                            return STRING("<SHADER_ERROR_UNKNOWN>");
+        case SHADER_ERROR_OK:               return "SHADER_ERROR_OK";
+        case SHADER_ERROR_COMPILE_VERTEX:   return "SHADER_ERROR_COMPILE_VERTEX";
+        case SHADER_ERROR_COMPILE_FRAGMENT: return "SHADER_ERROR_COMPILE_FRAGMENT";
+        case SHADER_ERROR_COMPILE_GEOMETRY: return "SHADER_ERROR_COMPILE_GEOMETRY";
+        case SHADER_ERROR_COMPILE_COMPUTE:  return "SHADER_ERROR_COMPILE_COMPUTE";
+        case SHADER_ERROR_LINK:             return "SHADER_ERROR_LINK";
+        default:                            return "<SHADER_ERROR_UNKNOWN>";
     }
 }
 
@@ -101,7 +101,7 @@ u32 shader_error_module()
 {
     static u32 shader_error_module = 0;
     if(shader_error_module == 0)
-        shader_error_module = error_system_register_module(translate_shader_error, STRING("shader_util.h"), NULL);
+        shader_error_module = error_system_register_module(translate_shader_error, "shader_util.h", NULL);
 
     return shader_error_module;
 }
@@ -330,7 +330,7 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
     String_Builder error_string = {scratch};
 
     //LOG_DEBUG(SHADER_UTIL_CHANEL, "Compute shader source:\n%s", prepended_source.data);
-    error = ERROR_OR(error) compute_shader_init(shader, cstring_from_builder(prepended_source), name, &error_string);
+    error = ERROR_AND(error) compute_shader_init(shader, cstring_from_builder(prepended_source), name, &error_string);
 
     if(!error_is_ok(error))
     {
@@ -371,7 +371,7 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
     if(geometry_path.size > 0)
         geomtery_error = file_read_entire(geometry_path, &geometry_source);
 
-    Error compile_error = ERROR_OR(vertex_error) ERROR_OR(fragment_error) geomtery_error;
+    Error compile_error = ERROR_AND(vertex_error) ERROR_AND(fragment_error) geomtery_error;
     if(error_is_ok(compile_error))
     {
         compile_error = render_shader_init(shader,
@@ -425,7 +425,7 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
     if(string_find_first(source, STRING("#ifdef GEOM"), 0) != -1)
         geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), scratch);
 
-    error = ERROR_OR(error) render_shader_init(shader,
+    error = ERROR_AND(error) render_shader_init(shader,
         cstring_from_builder(vertex_source),
         cstring_from_builder(fragment_source),
         cstring_from_builder(geometry_source),
