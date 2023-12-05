@@ -3,6 +3,7 @@
 #pragma warning(disable:4464)
 #include "../lib/file.h"
 #include "../lib/hash_index.h"
+#include "../lib/random.h"
 #include "math.h"
 #include "gl.h"
 #pragma warning(default:4464)
@@ -336,8 +337,9 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
     {
         LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
         log_group_push();
-            LOG_ERROR(SHADER_UTIL_CHANEL, "source:\"" STRING_FMT "\"", STRING_PRINT(source_path));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_string));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(source_path));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "source: \"" STRING_FMT "\"", STRING_PRINT(source));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "error:  \n" STRING_FMT, STRING_PRINT(error_string));
         log_group_pop();
     }
     else

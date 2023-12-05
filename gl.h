@@ -1,7 +1,7 @@
 #ifndef JOT_GL
 #define JOT_GL
 
-#include "glad2/gl.h"
+#include "../extrenal/include/glad2/gl.h"
 
 #endif
 
@@ -10,6 +10,6 @@
 #define JOT_GL_HAS_IMPL
 
 #define GLAD_GL_IMPLEMENTATION
-#include "glad2/gl.h"
+#include "../extrenal/include/glad2/gl.h"
 
 #endif
