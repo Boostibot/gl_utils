@@ -6,8 +6,8 @@ typedef struct GL_Pixel_Format {
     GLuint type;
     GLuint format;
     GLuint internal_format;
-    GLuint pixel_size;
-    GLuint channels;
+    i32 pixel_size;
+    i32 channels;
     Image_Pixel_Format equivalent;
 
     bool unrepresentable;
@@ -19,7 +19,7 @@ GL_Pixel_Format gl_pixel_format_from_pixel_format(Image_Pixel_Format pixel_forma
     error_format.unrepresentable = true;
     
     GL_Pixel_Format out = {0};
-    GLuint channel_size = 0;
+    i32 channel_size = 0;
     
     switch(channels)
     {

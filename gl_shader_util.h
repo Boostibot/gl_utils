@@ -119,7 +119,7 @@ bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, S
             {
                 array_resize(error, 1024);
                 glGetProgramInfoLog(shader, (GLsizei) error->size, NULL, error->data);
-                array_resize(error, strlen(error->data));
+                array_resize(error, (isize) strlen(error->data));
             }
         }
     }
@@ -132,7 +132,7 @@ bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, S
             {
                 array_resize(error, 1024);
                 glGetShaderInfoLog(shader, (GLsizei) error->size, NULL, error->data);
-                array_resize(error, strlen(error->data));
+                array_resize(error, (isize) strlen(error->data));
             }
         }
     }
@@ -205,7 +205,7 @@ Error render_shader_init(Render_Shader* shader, const char* vertex, const char* 
 
         //Check for errors
         if(!shader_check_compile_error(shaders[i], SHADER_COMPILATION_COMPILE, error_string))
-            out_error = error_make(shader_error_module(), SHADER_ERROR_COMPILE_VERTEX + i);
+            out_error = error_make(shader_error_module(), (u32) (SHADER_ERROR_COMPILE_VERTEX + i));
     }
         
     if(error_is_ok(out_error))
@@ -291,7 +291,7 @@ Compute_Shader_Limits compute_shader_query_limits()
     if(querried.max_group_invocations < 0)
     {
         STATIC_ASSERT(sizeof(GLint) == sizeof(i32));
-	    for (int i = 0; i < 3; i++) 
+	    for (GLuint i = 0; i < 3; i++) 
         {
 		    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, i, &querried.max_group_count[i]);
 		    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, i, &querried.max_group_size[i]);
@@ -501,11 +501,11 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
             LOG_ERROR("RENDER", "failed to find uniform %-25s shader: %s", uniform, shader->name.data);
 
         array_push(&shader->uniforms, builder_from_cstring(uniform, shader->allocator));
-        found = hash_index32_insert(&shader->uniform_hash, hash, location);
+        found = hash_index32_insert(&shader->uniform_hash, hash, (u32) location);
     }
     else
     {
-        location = shader->uniform_hash.entries[found].value;
+        location = (GLint) shader->uniform_hash.entries[found].value;
     }
 
     #ifdef DO_ASSERTS
