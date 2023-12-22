@@ -1,10 +1,8 @@
 #pragma once
 
 
-#pragma warning(disable:4464)
 #include "gl.h"
 #include "../lib/log.h"
-#pragma warning(default:4464)
 
 #define DEBUG_OUTPUT_CHANEL "opengl"
 

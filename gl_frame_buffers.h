@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gl_utils/gl.h"
-#include "lib/string.h"
+#include "gl.h"
+#include "../lib/string.h"
 
 typedef struct Render_Screen_Frame_Buffers
 {

@@ -1,12 +1,10 @@
 #pragma once
 
-#pragma warning(disable:4464)
 #include "../lib/file.h"
 #include "../lib/hash_index.h"
 #include "../lib/random.h"
 #include "math.h"
 #include "gl.h"
-#pragma warning(default:4464)
 
 #define SHADER_UTIL_CHANEL "SHADER"
 
