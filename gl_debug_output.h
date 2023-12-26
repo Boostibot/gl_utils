@@ -100,6 +100,25 @@ void gl_debug_output_func(GLenum source,
     log_group_pop();
 }
 
+
+static void gl_post_call_gl_callback(void *ret, const char *name, GLADapiproc apiproc, int len_args, ...) {
+    GLenum error_code;
+
+    (void) ret;
+    (void) apiproc;
+    (void) len_args;
+
+    error_code = glad_glGetError();
+
+    if (error_code != GL_NO_ERROR) {
+        LOG_ERROR(DEBUG_OUTPUT_CHANEL, "error %s in %s!", gl_translate_error(error_code, NULL), name);
+        log_group_push();
+        log_callstack(DEBUG_OUTPUT_CHANEL, LOG_TYPE_ERROR, -1, 2);
+        log_group_pop();
+        platform_trap();
+    }
+}
+
 void gl_debug_output_enable()
 {
     int flags = 0; 
