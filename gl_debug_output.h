@@ -131,4 +131,7 @@ void gl_debug_output_enable()
         glDebugMessageCallback(gl_debug_output_func, NULL);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
     } 
+
+    gladSetGLPostCallback(gl_post_call_gl_callback);
+    gladInstallGLDebug();
 }
