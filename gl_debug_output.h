@@ -110,13 +110,8 @@ static void gl_post_call_gl_callback(void *ret, const char *name, GLADapiproc ap
 
     error_code = glad_glGetError();
 
-    if (error_code != GL_NO_ERROR) {
-        LOG_ERROR(DEBUG_OUTPUT_CHANEL, "error %s in %s!", gl_translate_error(error_code, NULL), name);
-        log_group_push();
-        log_callstack(DEBUG_OUTPUT_CHANEL, LOG_TYPE_ERROR, -1, 2);
-        log_group_pop();
-        platform_trap();
-    }
+    if (error_code != GL_NO_ERROR) 
+        log_callstack(DEBUG_OUTPUT_CHANEL, LOG_TYPE_ERROR, 2, "error %s in %s!", gl_translate_error(error_code, NULL), name);
 }
 
 void gl_debug_output_enable()
