@@ -334,11 +334,9 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
     if(!error_is_ok(error))
     {
         LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
-        log_group_push();
-            LOG_ERROR(SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(source_path));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "source: \"" STRING_FMT "\"", STRING_PRINT(source));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error:  \n" STRING_FMT, STRING_PRINT(error_string));
-        log_group_pop();
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(source_path));
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "source: \"" STRING_FMT "\"", STRING_PRINT(source));
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:  \n" STRING_FMT, STRING_PRINT(error_string));
     }
     else
     {
@@ -385,15 +383,11 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
     if(!error_is_ok(compile_error))
     {
         LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(compile_error));
-        log_group_push();
-            LOG_ERROR(SHADER_UTIL_CHANEL, "vertex:   \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(vertex_path), ERROR_PRINT(vertex_error));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "fragment: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(fragment_path), ERROR_PRINT(fragment_error));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "geometry: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(geometry_path), ERROR_PRINT(geomtery_error));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error:\n");
-            log_group_push();
-                LOG_ERROR(SHADER_UTIL_CHANEL, STRING_FMT, STRING_PRINT(error_text));
-            log_group_pop();
-        log_group_pop();
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "vertex:   \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(vertex_path), ERROR_PRINT(vertex_error));
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "fragment: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(fragment_path), ERROR_PRINT(fragment_error));
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "geometry: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(geometry_path), ERROR_PRINT(geomtery_error));
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n");
+                LOG_ERROR(">>" SHADER_UTIL_CHANEL, STRING_FMT, STRING_PRINT(error_text));
     }
 
     array_deinit(&vertex_source);
@@ -435,10 +429,8 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
     if(!error_is_ok(error))
     {
         LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
-        log_group_push();
-            LOG_ERROR(SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(path));
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
-        log_group_pop();
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(path));
+            LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
     }
 
 
