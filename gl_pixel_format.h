@@ -3,23 +3,20 @@
 #include "../lib/image.h"
 
 typedef struct GL_Pixel_Format {
-    GLuint channel_type;    //GL_FLOAT, GL_UNSIGNED_BYTE, ...
-    GLuint access_format;   //GL_RGBA, GL_RED, ...
-    GLuint storage_format;  //GL_RGBA16UI, GL_R8UI, ...
-    i32 pixel_size;         //4*N, 1*N, ... where N is sizeof channel_type
-    i32 channels;           //4, 1, ... 
-
-    Pixel_Type equivalent;
-    bool unrepresentable;   //true if cannot be cleanly converted to equivalent.
+    GLuint channel_type;     //GL_FLOAT, GL_UNSIGNED_BYTE, ...
+    GLuint access_format;    //GL_RGBA, GL_RED, ...
+    GLuint internal_format;  //GL_RGBA16I, GL_R8, GL_RGBA16F...
 } GL_Pixel_Format;
 
-GL_Pixel_Format gl_pixel_format_from_pixel_format(Pixel_Type pixel_format, isize channels)
+
+
+//If fails sets all members to 0
+GL_Pixel_Format gl_pixel_format_from_pixel_type(Pixel_Type pixel_format, isize channels)
 {
     GL_Pixel_Format error_format = {0};
-    error_format.unrepresentable = true;
     
     GL_Pixel_Format out = {0};
-    i32 channel_size = 0;
+    i32 channel_size = pixel_type_size(pixel_format);
     
     switch(channels)
     {
@@ -31,116 +28,125 @@ GL_Pixel_Format gl_pixel_format_from_pixel_format(Pixel_Type pixel_format, isize
         default: return error_format;
     }
 
-    //@TODO: pixel formats!
-    
-    #pragma warning(disable:4061) //Dissables "'PIXEL_TYPE_I24' in switch of enum 'Pixel_Type' is not explicitly handled by a case label"
+    #define PIXEL_TYPE_CASE(PIXEL_TYPE, GL_CHANNEL_TYPE, POSTFIX) \
+        case PIXEL_TYPE: { \
+            out.channel_type = GL_CHANNEL_TYPE; \
+            switch(channels) \
+            { \
+                case 1: out.internal_format = GL_R ## POSTFIX; break; \
+                case 2: out.internal_format = GL_RG ## POSTFIX; break; \
+                case 3: out.internal_format = GL_RGB ## POSTFIX; break; \
+                case 4: out.internal_format = GL_RGBA ## POSTFIX; break; \
+            } \
+        } break \
+
+
     switch(pixel_format)
     {
-        case PIXEL_TYPE_U8: {
-            channel_size = 1;
-            out.channel_type = GL_UNSIGNED_BYTE;
-            switch(channels)
-            {
-                case 1: out.storage_format = GL_R8; break;
-                case 2: out.storage_format = GL_RG8; break;
-                case 3: out.storage_format = GL_RGB8; break;
-                case 4: out.storage_format = GL_RGBA8; break;
-            }
-        } break;
+        PIXEL_TYPE_CASE(PIXEL_TYPE_U8, GL_UNSIGNED_BYTE, 8);
+        PIXEL_TYPE_CASE(PIXEL_TYPE_U16, GL_UNSIGNED_SHORT, 16);
+        PIXEL_TYPE_CASE(PIXEL_TYPE_U32, GL_UNSIGNED_INT, 32UI);
+        case PIXEL_TYPE_U24: return error_format;
+        case PIXEL_TYPE_U64: return error_format;
+
+        PIXEL_TYPE_CASE(PIXEL_TYPE_I8, GL_BYTE, 8I);
+        PIXEL_TYPE_CASE(PIXEL_TYPE_I16, GL_SHORT, 16I);
+        PIXEL_TYPE_CASE(PIXEL_TYPE_I32, GL_INT, 32I);
+        case PIXEL_TYPE_I24: return error_format;
+        case PIXEL_TYPE_I64: return error_format;
         
-        case PIXEL_TYPE_U16: {
-            channel_size = 2;
-            out.channel_type = GL_UNSIGNED_SHORT;
-            switch(channels)
-            {
-                case 1: out.storage_format = GL_R16; break;
-                case 2: out.storage_format = GL_RG16; break;
-                case 3: out.storage_format = GL_RGB16; break;
-                case 4: out.storage_format = GL_RGBA16; break;
-            }
-        } break;
+        PIXEL_TYPE_CASE(PIXEL_TYPE_F16, GL_HALF_FLOAT, 16F);
+        PIXEL_TYPE_CASE(PIXEL_TYPE_F32, GL_FLOAT, 32F);
+        case PIXEL_TYPE_F8: return error_format;
+        case PIXEL_TYPE_F64: return error_format;
         
-        case PIXEL_TYPE_U32: {
-            channel_size = 4;
-            out.channel_type = GL_UNSIGNED_INT;
-            switch(channels)
-            {
-                case 1: out.storage_format = GL_R32UI; break;
-                case 2: out.storage_format = GL_RG32UI; break;
-                case 3: out.storage_format = GL_RGB32UI; break;
-                case 4: out.storage_format = GL_RGBA32UI; break;
-            }
-        } break;
-        
-        case PIXEL_TYPE_F32: {
-            channel_size = 4;
-            out.channel_type = GL_FLOAT;
-            switch(channels)
-            {
-                case 1: out.storage_format = GL_R32F; break;
-                case 2: out.storage_format = GL_RG32F; break;
-                case 3: out.storage_format = GL_RGB32F; break;
-                case 4: out.storage_format = GL_RGBA32F; break;
-            }
-        } break;
-        
-        case PIXEL_TYPE_U24: 
+        case PIXEL_TYPE_INVALID: 
         default: return error_format;
     }
-    #pragma warning(default:4061)
 
-    out.channels = (i32) channels;
-    out.pixel_size = out.channels * channel_size;
-    out.equivalent = pixel_format;
+    #undef PIXEL_TYPE_CASE
     return out;
 }
 
-Pixel_Type pixel_format_from_gl_pixel_format(GL_Pixel_Format gl_format, isize* channels)
+GL_Pixel_Format gl_pixel_format_from_pixel_type_size(Pixel_Type pixel_format, isize pixel_size)
 {
-    switch(gl_format.storage_format)
+    return gl_pixel_format_from_pixel_type(pixel_format, pixel_size / pixel_type_size(pixel_format));
+}
+
+//returns PIXEL_TYPE_INVALID and sets channels to 0 if couldnt match
+Pixel_Type pixel_type_from_gl_internal_format(GLuint internal_format, i32* channels)
+{
+    ASSERT(channels != 0);
+    #define GL_TYPE_CASE1(P1, PIXEL_TYPE) \
+        case GL_R ## P1: \
+            *channels = 1; return PIXEL_TYPE; \
+        case GL_RG ## P1: \
+            *channels = 2; return PIXEL_TYPE; \
+        case GL_RGB ## P1: \
+            *channels = 3; return PIXEL_TYPE; \
+        case GL_RGBA ## P1: \
+            *channels = 4; return PIXEL_TYPE; \
+
+    #define GL_TYPE_CASE2(P1, P2, PIXEL_TYPE) \
+        case GL_R ## P1: \
+        case GL_R ## P2: \
+            *channels = 1; return PIXEL_TYPE; \
+        case GL_RG ## P1: \
+        case GL_RG ## P2: \
+            *channels = 2; return PIXEL_TYPE; \
+        case GL_RGB ## P1: \
+        case GL_RGB ## P2: \
+            *channels = 3; return PIXEL_TYPE; \
+        case GL_RGBA ## P1: \
+        case GL_RGBA ## P2: \
+            *channels = 4; return PIXEL_TYPE; \
+
+    switch(internal_format)
     {
-        case GL_R8: case GL_R8I: case GL_R8UI: 
-            *channels = 1; return PIXEL_TYPE_U8;
-        case GL_RG8: case GL_RG8I: case GL_RG8UI: 
-            *channels = 2; return PIXEL_TYPE_U8;
-        case GL_RGB8: case GL_RGB8I: case GL_RGB8UI: 
-            *channels = 3; return PIXEL_TYPE_U8;
-        case GL_RGBA8: case GL_RGBA8I: case GL_RGBA8UI: 
-            *channels = 4; return PIXEL_TYPE_U8;
+        GL_TYPE_CASE2(8, 8UI, PIXEL_TYPE_U8);
+        GL_TYPE_CASE1(8I, PIXEL_TYPE_U8);
+        
+        GL_TYPE_CASE2(16, 16UI, PIXEL_TYPE_U16);
+        GL_TYPE_CASE1(16I, PIXEL_TYPE_U16);
 
-        case GL_R16: case GL_R16I: case GL_R16UI: 
-            *channels = 1; return PIXEL_TYPE_U16;
-        case GL_RG16: case GL_RG16I: case GL_RG16UI: 
-            *channels = 2; return PIXEL_TYPE_U16;
-        case GL_RGB16: case GL_RGB16I: case GL_RGB16UI: 
-            *channels = 3; return PIXEL_TYPE_U16;
-        case GL_RGBA16: case GL_RGBA16I: case GL_RGBA16UI: 
-            *channels = 4; return PIXEL_TYPE_U16;
+        GL_TYPE_CASE1(32UI, PIXEL_TYPE_U32);
+        GL_TYPE_CASE1(32I, PIXEL_TYPE_I32);
 
-        case GL_R32UI: case GL_R32I: 
-            *channels = 1; return PIXEL_TYPE_U32;
-        case GL_RG32UI: case GL_RG32I: 
-            *channels = 2; return PIXEL_TYPE_U32;
-        case GL_RGB32UI: case GL_RGB32I: 
-            *channels = 3; return PIXEL_TYPE_U32;
-        case GL_RGBA32UI: case GL_RGBA32I: 
-            *channels = 4; return PIXEL_TYPE_U32;
+        GL_TYPE_CASE1(16F, PIXEL_TYPE_F16);
+        GL_TYPE_CASE1(32F, PIXEL_TYPE_F32);
 
-        case GL_R32F: *channels = 1; return PIXEL_TYPE_F32;
-        case GL_RG32F: *channels = 2; return PIXEL_TYPE_F32;
-        case GL_RGB32F: *channels = 3; return PIXEL_TYPE_F32;
-        case GL_RGBA32F: *channels = 4; return PIXEL_TYPE_F32;
+        default: 
+            *channels = 0;
+            return PIXEL_TYPE_INVALID;
+        break;
     }
-    
-    *channels = gl_format.channels;
+
+    #undef GL_TYPE_CASE1
+    #undef GL_TYPE_CASE2
+}
+
+//returns PIXEL_TYPE_INVALID on failiure
+Pixel_Type pixel_type_from_gl_access_format(GL_Pixel_Format gl_format)
+{
     switch(gl_format.channel_type)
     {
         case GL_UNSIGNED_BYTE: return PIXEL_TYPE_U8;
         case GL_UNSIGNED_SHORT: return PIXEL_TYPE_U16;
         case GL_UNSIGNED_INT: return PIXEL_TYPE_U32;
+
+        case GL_BYTE: return PIXEL_TYPE_I8;
+        case GL_SHORT: return PIXEL_TYPE_I16;
+        case GL_INT: return PIXEL_TYPE_I32;
+
+        case GL_HALF_FLOAT: return PIXEL_TYPE_F16;
         case GL_FLOAT: return PIXEL_TYPE_F32;
+
+        default: return PIXEL_TYPE_INVALID;
     }
-    
-    *channels = 0;
-    return (Pixel_Type) 0; 
+}
+
+//Outputs 0 to channels if couldnt match
+Pixel_Type pixel_type_from_gl_pixel_format(GL_Pixel_Format gl_format, i32* channels)
+{
+    return pixel_type_from_gl_internal_format(gl_format.internal_format, channels);
 }
