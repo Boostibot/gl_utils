@@ -16,7 +16,6 @@ GL_Pixel_Format gl_pixel_format_from_pixel_type(Pixel_Type pixel_format, isize c
     GL_Pixel_Format error_format = {0};
     
     GL_Pixel_Format out = {0};
-    i32 channel_size = pixel_type_size(pixel_format);
     
     switch(channels)
     {
