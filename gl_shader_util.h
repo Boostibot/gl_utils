@@ -321,33 +321,33 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
         "#define WORK_GROUP_SIZE_Z %lli \n",
         work_group_x, work_group_y, work_group_z
         );
-        
-    Allocator* scratch = allocator_get_scratch();
-    String_Builder source = {scratch};
-    Error error = file_read_entire(source_path, &source);
-    String_Builder prepended_source = render_shader_source_prepend(string_from_builder(source), prepend, scratch);
-    String_Builder error_string = {scratch};
-
-    //LOG_DEBUG(SHADER_UTIL_CHANEL, "Compute shader source:\n%s", prepended_source.data);
-    error = ERROR_AND(error) compute_shader_init(shader, cstring_from_builder(prepended_source), name, &error_string);
-
-    if(!error_is_ok(error))
+    
+    Error error = {0};
+    Allocator* arena = allocator_arena_acquire();
     {
-        LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(source_path));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "source: \"" STRING_FMT "\"", STRING_PRINT(source));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:  \n" STRING_FMT, STRING_PRINT(error_string));
-    }
-    else
-    {
-        shader->work_group_size_x = (i32) work_group_x;
-        shader->work_group_size_y = (i32) work_group_y;
-        shader->work_group_size_z = (i32) work_group_z;
-    }
+        String_Builder source = {arena};
+        error = file_read_entire(source_path, &source);
+        String_Builder prepended_source = render_shader_source_prepend(string_from_builder(source), prepend, arena);
+        String_Builder error_string = {arena};
 
-    array_deinit(&source);
-    array_deinit(&prepended_source);
-    array_deinit(&error_string);
+        //LOG_DEBUG(SHADER_UTIL_CHANEL, "Compute shader source:\n%s", prepended_source.data);
+        error = ERROR_AND(error) compute_shader_init(shader, cstring_from_builder(prepended_source), name, &error_string);
+
+        if(!error_is_ok(error))
+        {
+            LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(source_path));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "source: \"" STRING_FMT "\"", STRING_PRINT(source));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:  \n" STRING_FMT, STRING_PRINT(error_string));
+        }
+        else
+        {
+            shader->work_group_size_x = (i32) work_group_x;
+            shader->work_group_size_y = (i32) work_group_y;
+            shader->work_group_size_z = (i32) work_group_z;
+        }
+    }
+    allocator_arena_release(&arena);
 
     return error;
 }
@@ -355,46 +355,44 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
 Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_path, String fragment_path, String geometry_path)
 {
     PERF_COUNTER_START(c);
-    Allocator* scratch = allocator_get_scratch();
-    String_Builder error_text = {scratch};
-    String_Builder vertex_source = {scratch};
-    String_Builder fragment_source = {scratch};
-    String_Builder geometry_source = {scratch};
-    
-    String name = path_get_name_from_path(fragment_path);
-    Error vertex_error = file_read_entire(vertex_path, &vertex_source);
-    Error fragment_error = file_read_entire(fragment_path, &fragment_source);
-    Error geomtery_error = {0};
-
-    if(geometry_path.size > 0)
-        geomtery_error = file_read_entire(geometry_path, &geometry_source);
-
-    Error compile_error = ERROR_AND(vertex_error) ERROR_AND(fragment_error) geomtery_error;
-    if(error_is_ok(compile_error))
+    Error compile_error = {0};
+    Allocator* arena = allocator_arena_acquire();
     {
-        compile_error = render_shader_init(shader,
-            cstring_from_builder(vertex_source),
-            cstring_from_builder(fragment_source),
-            cstring_from_builder(geometry_source),
-            name,
-            &error_text);
-    }
+        String_Builder error_text = {arena};
+        String_Builder vertex_source = {arena};
+        String_Builder fragment_source = {arena};
+        String_Builder geometry_source = {arena};
         
-    if(!error_is_ok(compile_error))
-    {
-        LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(compile_error));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "vertex:   \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(vertex_path), ERROR_PRINT(vertex_error));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "fragment: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(fragment_path), ERROR_PRINT(fragment_error));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "geometry: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(geometry_path), ERROR_PRINT(geomtery_error));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n");
-                LOG_ERROR(">>" SHADER_UTIL_CHANEL, STRING_FMT, STRING_PRINT(error_text));
-    }
+        String name = path_get_name_from_path(fragment_path);
+        Error vertex_error = file_read_entire(vertex_path, &vertex_source);
+        Error fragment_error = file_read_entire(fragment_path, &fragment_source);
+        Error geomtery_error = {0};
 
-    array_deinit(&vertex_source);
-    array_deinit(&fragment_source);
-    array_deinit(&geometry_source);
-    array_deinit(&error_text);
-    
+        if(geometry_path.size > 0)
+            geomtery_error = file_read_entire(geometry_path, &geometry_source);
+
+        compile_error = ERROR_AND(vertex_error) ERROR_AND(fragment_error) geomtery_error;
+        if(error_is_ok(compile_error))
+        {
+            compile_error = render_shader_init(shader,
+                cstring_from_builder(vertex_source),
+                cstring_from_builder(fragment_source),
+                cstring_from_builder(geometry_source),
+                name,
+                &error_text);
+        }
+            
+        if(!error_is_ok(compile_error))
+        {
+            LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(compile_error));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "vertex:   \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(vertex_path), ERROR_PRINT(vertex_error));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "fragment: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(fragment_path), ERROR_PRINT(fragment_error));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "geometry: \"" STRING_FMT "\" " ERROR_FMT, STRING_PRINT(geometry_path), ERROR_PRINT(geomtery_error));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n");
+                    LOG_ERROR(">>" SHADER_UTIL_CHANEL, STRING_FMT, STRING_PRINT(error_text));
+        }
+    }
+    allocator_arena_release(&arena);
     PERF_COUNTER_END(c);
     return compile_error;
 }
@@ -404,42 +402,38 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
     LOG_INFO("shader", "loading: " STRING_FMT, STRING_PRINT(path));
 
     PERF_COUNTER_START(c);
-    Allocator* scratch = allocator_get_scratch();
-    String_Builder error_text = {scratch};
-    String_Builder source_text = {scratch};
-
-    String name = path_get_name_from_path(path);
-    Error error = file_read_entire(path, &source_text);
-    String source = string_from_builder(source_text);
-    
-    String_Builder vertex_source = render_shader_source_prepend(source, STRING("#define VERT"), scratch);
-    String_Builder fragment_source = render_shader_source_prepend(source, STRING("#define FRAG"), scratch);
-    String_Builder geometry_source = {scratch};
-
-    if(string_find_first(source, STRING("#ifdef GEOM"), 0) != -1)
-        geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), scratch);
-
-    error = ERROR_AND(error) render_shader_init(shader,
-        cstring_from_builder(vertex_source),
-        cstring_from_builder(fragment_source),
-        cstring_from_builder(geometry_source),
-        name,
-        &error_text);
-
-    if(!error_is_ok(error))
+    Error error = {0};
+    Allocator* arena = allocator_arena_acquire();
     {
-        LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(path));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
+        String_Builder error_text = {arena};
+        String_Builder source_text = {arena};
+
+        String name = path_get_name_from_path(path);
+        error = file_read_entire(path, &source_text);
+        String source = string_from_builder(source_text);
+        
+        String_Builder vertex_source = render_shader_source_prepend(source, STRING("#define VERT"), arena);
+        String_Builder fragment_source = render_shader_source_prepend(source, STRING("#define FRAG"), arena);
+        String_Builder geometry_source = {arena};
+
+        if(string_find_first(source, STRING("#ifdef GEOM"), 0) != -1)
+            geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), arena);
+
+        error = ERROR_AND(error) render_shader_init(shader,
+            cstring_from_builder(vertex_source),
+            cstring_from_builder(fragment_source),
+            cstring_from_builder(geometry_source),
+            name,
+            &error_text);
+
+        if(!error_is_ok(error))
+        {
+            LOG_ERROR(SHADER_UTIL_CHANEL, "render_shader_init_from_disk() failed with: " ERROR_FMT, ERROR_PRINT(error));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "path:   \"" STRING_FMT "\"", STRING_PRINT(path));
+                LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
+        }
     }
-
-
-    array_deinit(&vertex_source);
-    array_deinit(&fragment_source);
-    array_deinit(&geometry_source);
-    array_deinit(&error_text);
-    array_deinit(&source_text);
-    
+    allocator_arena_release(&arena);
     PERF_COUNTER_END(c);
     return error;
 }
