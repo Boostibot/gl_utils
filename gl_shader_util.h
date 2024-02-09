@@ -39,7 +39,7 @@ typedef struct Render_Shader
     //
     // Should a collision occur we will simply change the uniform
     // (or change the seed)
-    Hash_Index32 uniform_hash;
+    Hash_Index uniform_hash;
     String_Builder_Array uniforms;
     f64 check_probabiity;
 
@@ -59,8 +59,8 @@ void render_shader_deinit(Render_Shader* shader)
         glUseProgram(0);
         glDeleteProgram(shader->shader);
     }
-    array_deinit(&shader->name);
-    hash_index32_deinit(&shader->uniform_hash);
+    builder_deinit(&shader->name);
+    hash_index_deinit(&shader->uniform_hash);
     builder_array_deinit(&shader->uniforms);
     memset(shader, 0, sizeof(*shader));
 }
@@ -77,7 +77,7 @@ void render_shader_preinit(Render_Shader* shader, Allocator* alloc, String name)
     shader->check_probabiity = 1.0 / 10000;
     shader->name = builder_from_string(name, alloc);
     array_init(&shader->uniforms, alloc);
-    hash_index32_init(&shader->uniform_hash, alloc);
+    hash_index_init(&shader->uniform_hash, alloc);
 }
 
 
@@ -115,9 +115,9 @@ bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, S
         {
             if(error != NULL)
             {
-                array_resize(error, 1024);
+                builder_resize(error, 1024);
                 glGetProgramInfoLog(shader, (GLsizei) error->size, NULL, error->data);
-                array_resize(error, (isize) strlen(error->data));
+                builder_resize(error, (isize) strlen(error->data));
             }
         }
     }
@@ -128,9 +128,9 @@ bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, S
         {
             if(error != NULL)
             {
-                array_resize(error, 1024);
+                builder_resize(error, 1024);
                 glGetShaderInfoLog(shader, (GLsizei) error->size, NULL, error->data);
-                array_resize(error, (isize) strlen(error->data));
+                builder_resize(error, (isize) strlen(error->data));
             }
         }
     }
@@ -325,13 +325,14 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
     Error error = {0};
     Allocator* arena = allocator_arena_acquire();
     {
-        String_Builder source = {arena};
+        String_Builder source = builder_make(arena, 0);
         error = file_read_entire(source_path, &source);
-        String_Builder prepended_source = render_shader_source_prepend(string_from_builder(source), prepend, arena);
-        String_Builder error_string = {arena};
+
+        String_Builder prepended_source = render_shader_source_prepend(source.string, prepend, arena);
+        String_Builder error_string = builder_make(arena, 0);
 
         //LOG_DEBUG(SHADER_UTIL_CHANEL, "Compute shader source:\n%s", prepended_source.data);
-        error = ERROR_AND(error) compute_shader_init(shader, cstring_from_builder(prepended_source), name, &error_string);
+        error = ERROR_AND(error) compute_shader_init(shader, prepended_source.data, name, &error_string);
 
         if(!error_is_ok(error))
         {
@@ -358,10 +359,10 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
     Error compile_error = {0};
     Allocator* arena = allocator_arena_acquire();
     {
-        String_Builder error_text = {arena};
-        String_Builder vertex_source = {arena};
-        String_Builder fragment_source = {arena};
-        String_Builder geometry_source = {arena};
+        String_Builder error_text = builder_make(arena, 0);
+        String_Builder vertex_source = builder_make(arena, 0);
+        String_Builder fragment_source = builder_make(arena, 0);
+        String_Builder geometry_source = builder_make(arena, 0);
         
         String name = path_get_name_from_path(fragment_path);
         Error vertex_error = file_read_entire(vertex_path, &vertex_source);
@@ -375,9 +376,9 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
         if(error_is_ok(compile_error))
         {
             compile_error = render_shader_init(shader,
-                cstring_from_builder(vertex_source),
-                cstring_from_builder(fragment_source),
-                cstring_from_builder(geometry_source),
+                vertex_source.data,
+                fragment_source.data,
+                geometry_source.data,
                 name,
                 &error_text);
         }
@@ -405,24 +406,24 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
     Error error = {0};
     Allocator* arena = allocator_arena_acquire();
     {
-        String_Builder error_text = {arena};
-        String_Builder source_text = {arena};
+        String_Builder error_text = builder_make(arena, 0);
+        String_Builder source_text = builder_make(arena, 0);
 
         String name = path_get_name_from_path(path);
         error = file_read_entire(path, &source_text);
-        String source = string_from_builder(source_text);
+        String source = source_text.string;
         
         String_Builder vertex_source = render_shader_source_prepend(source, STRING("#define VERT"), arena);
         String_Builder fragment_source = render_shader_source_prepend(source, STRING("#define FRAG"), arena);
-        String_Builder geometry_source = {arena};
+        String_Builder geometry_source = builder_make(arena, 0);
 
         if(string_find_first(source, STRING("#ifdef GEOM"), 0) != -1)
             geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), arena);
 
         error = ERROR_AND(error) render_shader_init(shader,
-            cstring_from_builder(vertex_source),
-            cstring_from_builder(fragment_source),
-            cstring_from_builder(geometry_source),
+            vertex_source.data,
+            fragment_source.data,
+            geometry_source.data,
             name,
             &error_text);
 
@@ -474,8 +475,8 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
     PERF_COUNTER_START(c);
     GLint location = 0;
     String uniform_str = string_make(uniform);
-    u32 hash = hash32_murmur(uniform_str.data, uniform_str.size, 0);
-    isize found = hash_index32_find(shader->uniform_hash, hash);
+    u64 hash = hash64_murmur(uniform_str.data, uniform_str.size, 0);
+    isize found = hash_index_find(shader->uniform_hash, hash);
 
     if(found == -1)
     {
@@ -485,7 +486,7 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
             LOG_ERROR("RENDER", "failed to find uniform %-25s shader: %s", uniform, shader->name.data);
 
         array_push(&shader->uniforms, builder_from_cstring(uniform, shader->allocator));
-        found = hash_index32_insert(&shader->uniform_hash, hash, (u32) location);
+        found = hash_index_insert(&shader->uniform_hash, hash, (u64) location);
     }
     else
     {
@@ -500,8 +501,8 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
         for(isize i = 0; i < shader->uniforms.size; i++)
         {
             String_Builder* curr_uniform = &shader->uniforms.data[i];
-            u32 curr_hash = hash32_murmur(curr_uniform->data, curr_uniform->size, 0);
-            if(curr_hash == hash && string_is_equal(string_from_builder(*curr_uniform), uniform_str) == false)
+            u64 curr_hash = hash64_murmur(curr_uniform->data, curr_uniform->size, 0);
+            if(curr_hash == hash && string_is_equal(curr_uniform->string, uniform_str) == false)
                 LOG_DEBUG("RENDER", "uniform %s hash coliding with uniform %s in shader %s", uniform, curr_uniform->data, shader->name.data);
         }
     }
