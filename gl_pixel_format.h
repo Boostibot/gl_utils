@@ -60,6 +60,7 @@ GL_Pixel_Format gl_pixel_format_from_pixel_type(Pixel_Type pixel_format, isize c
         case PIXEL_TYPE_F64: return error_format;
         
         case PIXEL_TYPE_INVALID: 
+        case PIXEL_TYPE_NONE: 
         default: return error_format;
     }
 

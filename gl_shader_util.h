@@ -323,13 +323,13 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
         );
     
     Error error = {0};
-    Allocator* arena = allocator_arena_acquire();
+    Arena arena = scratch_arena_acquire();
     {
-        String_Builder source = builder_make(arena, 0);
+        String_Builder source = builder_make(&arena.allocator, 0);
         error = file_read_entire(source_path, &source);
 
-        String_Builder prepended_source = render_shader_source_prepend(source.string, prepend, arena);
-        String_Builder error_string = builder_make(arena, 0);
+        String_Builder prepended_source = render_shader_source_prepend(source.string, prepend, &arena.allocator);
+        String_Builder error_string = builder_make(&arena.allocator, 0);
 
         //LOG_DEBUG(SHADER_UTIL_CHANEL, "Compute shader source:\n%s", prepended_source.data);
         error = ERROR_AND(error) compute_shader_init(shader, prepended_source.data, name, &error_string);
@@ -348,7 +348,7 @@ Error compute_shader_init_from_disk(Render_Shader* shader, String source_path, i
             shader->work_group_size_z = (i32) work_group_z;
         }
     }
-    allocator_arena_release(&arena);
+    arena_release(&arena);
 
     return error;
 }
@@ -357,12 +357,12 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
 {
     PERF_COUNTER_START(c);
     Error compile_error = {0};
-    Allocator* arena = allocator_arena_acquire();
+    Arena arena = scratch_arena_acquire();
     {
-        String_Builder error_text = builder_make(arena, 0);
-        String_Builder vertex_source = builder_make(arena, 0);
-        String_Builder fragment_source = builder_make(arena, 0);
-        String_Builder geometry_source = builder_make(arena, 0);
+        String_Builder error_text = builder_make(&arena.allocator, 0);
+        String_Builder vertex_source = builder_make(&arena.allocator, 0);
+        String_Builder fragment_source = builder_make(&arena.allocator, 0);
+        String_Builder geometry_source = builder_make(&arena.allocator, 0);
         
         String name = path_get_name_from_path(fragment_path);
         Error vertex_error = file_read_entire(vertex_path, &vertex_source);
@@ -393,7 +393,7 @@ Error render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pa
                     LOG_ERROR(">>" SHADER_UTIL_CHANEL, STRING_FMT, STRING_PRINT(error_text));
         }
     }
-    allocator_arena_release(&arena);
+    arena_release(&arena);
     PERF_COUNTER_END(c);
     return compile_error;
 }
@@ -404,21 +404,22 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
 
     PERF_COUNTER_START(c);
     Error error = {0};
-    Allocator* arena = allocator_arena_acquire();
+    Arena arena = scratch_arena_acquire();
     {
-        String_Builder error_text = builder_make(arena, 0);
-        String_Builder source_text = builder_make(arena, 0);
+        Allocator* arena_alloc = &arena.allocator;
+        String_Builder error_text = builder_make(arena_alloc, 0);
+        String_Builder source_text = builder_make(arena_alloc, 0);
 
         String name = path_get_name_from_path(path);
         error = file_read_entire(path, &source_text);
         String source = source_text.string;
         
-        String_Builder vertex_source = render_shader_source_prepend(source, STRING("#define VERT"), arena);
-        String_Builder fragment_source = render_shader_source_prepend(source, STRING("#define FRAG"), arena);
-        String_Builder geometry_source = builder_make(arena, 0);
+        String_Builder vertex_source = render_shader_source_prepend(source, STRING("#define VERT"), arena_alloc);
+        String_Builder fragment_source = render_shader_source_prepend(source, STRING("#define FRAG"), arena_alloc);
+        String_Builder geometry_source = builder_make(arena_alloc, 0);
 
         if(string_find_first(source, STRING("#ifdef GEOM"), 0) != -1)
-            geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), arena);
+            geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), arena_alloc);
 
         error = ERROR_AND(error) render_shader_init(shader,
             vertex_source.data,
@@ -434,7 +435,7 @@ Error render_shader_init_from_disk(Render_Shader* shader, String path)
                 LOG_ERROR(">" SHADER_UTIL_CHANEL, "error:\n" STRING_FMT, STRING_PRINT(error_text));
         }
     }
-    allocator_arena_release(&arena);
+    arena_release(&arena);
     PERF_COUNTER_END(c);
     return error;
 }
