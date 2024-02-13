@@ -63,7 +63,7 @@ void gl_debug_output_func(GLenum source,
     (void) length;
     (void) userParam;
     
-    Log_Type log_type = LOG_INFO;
+    Log_Filter log_type = LOG_INFO;
     switch (severity)
     {
         case GL_DEBUG_SEVERITY_HIGH:         log_type = LOG_FATAL; break;
@@ -72,29 +72,29 @@ void gl_debug_output_func(GLenum source,
         case GL_DEBUG_SEVERITY_NOTIFICATION: log_type = LOG_INFO;  break;
     };
 
-    LOG(DEBUG_OUTPUT_CHANEL, log_type, "GL error (%d): %s", (int) id, message);
+    LOG(DEBUG_OUTPUT_CHANEL, "", log_type, "GL error (%d): %s", (int) id, message);
 
     switch (source)
     {
-        case GL_DEBUG_SOURCE_API:             LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Source: API"); break;
-        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Source: Window System"); break;
-        case GL_DEBUG_SOURCE_SHADER_COMPILER: LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Source: Shader Compiler"); break;
-        case GL_DEBUG_SOURCE_THIRD_PARTY:     LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Source: Third Party"); break;
-        case GL_DEBUG_SOURCE_APPLICATION:     LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Source: Application"); break;
-        case GL_DEBUG_SOURCE_OTHER:           LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Source: Other"); break;
+        case GL_DEBUG_SOURCE_API:             LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Source: API"); break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Source: Window System"); break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Source: Shader Compiler"); break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY:     LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Source: Third Party"); break;
+        case GL_DEBUG_SOURCE_APPLICATION:     LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Source: Application"); break;
+        case GL_DEBUG_SOURCE_OTHER:           LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Source: Other"); break;
     };
 
     switch (type)
     {
-        case GL_DEBUG_TYPE_ERROR:               LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Error"); break;
-        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Deprecated Behaviour"); break;
-        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Undefined Behaviour"); break; 
-        case GL_DEBUG_TYPE_PORTABILITY:         LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Portability"); break;
-        case GL_DEBUG_TYPE_PERFORMANCE:         LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Performance"); break;
-        case GL_DEBUG_TYPE_MARKER:              LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Marker"); break;
-        case GL_DEBUG_TYPE_PUSH_GROUP:          LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Push Group"); break;
-        case GL_DEBUG_TYPE_POP_GROUP:           LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Pop Group"); break;
-        case GL_DEBUG_TYPE_OTHER:               LOG(">" DEBUG_OUTPUT_CHANEL, log_type, "Type: Other"); break;
+        case GL_DEBUG_TYPE_ERROR:               LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Error"); break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Deprecated Behaviour"); break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Undefined Behaviour"); break; 
+        case GL_DEBUG_TYPE_PORTABILITY:         LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Portability"); break;
+        case GL_DEBUG_TYPE_PERFORMANCE:         LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Performance"); break;
+        case GL_DEBUG_TYPE_MARKER:              LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Marker"); break;
+        case GL_DEBUG_TYPE_PUSH_GROUP:          LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Push Group"); break;
+        case GL_DEBUG_TYPE_POP_GROUP:           LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Pop Group"); break;
+        case GL_DEBUG_TYPE_OTHER:               LOG(">" DEBUG_OUTPUT_CHANEL, "", log_type, "Type: Other"); break;
     };
 }
 
