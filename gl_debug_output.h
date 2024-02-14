@@ -6,9 +6,8 @@
 
 #define DEBUG_OUTPUT_CHANEL "opengl"
 
-INTERNAL const char* gl_translate_error(u32 code, void* context)
+INTERNAL const char* gl_translate_error(GLenum code)
 {
-    (void) context;
     switch (code)
     {
         case GL_INVALID_ENUM:                  return "INVALID_ENUM";
@@ -22,26 +21,12 @@ INTERNAL const char* gl_translate_error(u32 code, void* context)
     }
 }
 
-INTERNAL u32 gl_error_module()
-{
-    static u32 error_module = 0;
-    if(error_module == 0)
-        error_module = error_system_register_module(gl_translate_error, "opengl", NULL);
-
-    return error_module;
-}
-
-Error gl_get_last_error()
-{
-    return error_make(gl_error_module(), glGetError());
-}
-
 GLenum _gl_check_error(const char *file, int line)
 {
     GLenum errorCode = 0;
     while ((errorCode = glGetError()) != GL_NO_ERROR)
     {
-        const char* error = gl_translate_error(errorCode, NULL);
+        const char* error = gl_translate_error(errorCode);
         LOG_ERROR(DEBUG_OUTPUT_CHANEL, "GL error %s | %s (%d)", error, file, line);
     }
     return errorCode;
@@ -110,9 +95,9 @@ static void gl_post_call_gl_callback(void *ret, const char *name, GLADapiproc ap
 
     if (error_code != GL_NO_ERROR) 
     {
-        const char* err = gl_translate_error(error_code, NULL);
+        const char* err = gl_translate_error(error_code);
         LOG_ERROR(DEBUG_OUTPUT_CHANEL,"error %s in %s!", err, name);
-        log_callstack(DEBUG_OUTPUT_CHANEL, LOG_ERROR, 2, "error %s in %s!", gl_translate_error(error_code, NULL), name);
+        log_callstack(DEBUG_OUTPUT_CHANEL, LOG_ERROR, 2, "error %s in %s!", gl_translate_error(error_code), name);
     }
 }
 
