@@ -37,6 +37,7 @@ typedef struct Render_Shader
     f64 check_probabiity;
 
     GLuint shader;
+    u32 _padding;
     String_Builder name;
     Shader_Type type;
 
@@ -68,7 +69,7 @@ void render_shader_preinit(Render_Shader* shader, Allocator* alloc, String name)
 
     shader->allocator = alloc;
     shader->check_probabiity = 1.0 / 10000;
-    shader->name = builder_from_string(name, alloc);
+    shader->name = builder_from_string(alloc, name);
     array_init(&shader->uniforms, alloc);
     hash_index_init(&shader->uniform_hash, alloc);
 }
@@ -314,7 +315,7 @@ bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize wor
     Arena arena = scratch_arena_acquire();
     {
         Log_List log_list = {0};
-        log_capture(&log_list, &arena.allocator);
+        log_list_init_capture(&log_list, &arena.allocator);
             String_Builder source = builder_make(&arena.allocator, 0);
             state = state && file_read_entire(path, &source);
 
@@ -351,7 +352,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
     Arena arena = scratch_arena_acquire();
     {
         Log_List log_list = {0};
-        log_capture(&log_list, &arena.allocator);
+        log_list_init_capture(&log_list, &arena.allocator);
 
         String_Builder vertex_source = builder_make(&arena.allocator, 0);
         String_Builder fragment_source = builder_make(&arena.allocator, 0);
@@ -397,7 +398,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
     Arena arena = scratch_arena_acquire();
     {
         Log_List log_list = {0};
-        log_capture(&log_list, &arena.allocator);
+        log_list_init_capture(&log_list, &arena.allocator);
 
         String_Builder source_text = builder_make(&arena.allocator, 0);
 
@@ -455,9 +456,9 @@ void render_shader_unuse(const Render_Shader* shader)
 
 void compute_shader_dispatch(Render_Shader* compute_shader, isize size_x, isize size_y, isize size_z)
 {
-    GLuint num_groups_x = (GLuint) MAX(DIV_ROUND_UP(size_x, compute_shader->work_group_size_x), 1);
-    GLuint num_groups_y = (GLuint) MAX(DIV_ROUND_UP(size_y, compute_shader->work_group_size_y), 1);
-    GLuint num_groups_z = (GLuint) MAX(DIV_ROUND_UP(size_z, compute_shader->work_group_size_z), 1);
+    GLuint num_groups_x = (GLuint) MAX(DIV_CEIL(size_x, compute_shader->work_group_size_x), 1);
+    GLuint num_groups_y = (GLuint) MAX(DIV_CEIL(size_y, compute_shader->work_group_size_y), 1);
+    GLuint num_groups_z = (GLuint) MAX(DIV_CEIL(size_z, compute_shader->work_group_size_z), 1);
 
     render_shader_use(compute_shader);
 	glDispatchCompute(num_groups_x, num_groups_y, num_groups_z);
@@ -478,7 +479,7 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
         if(location == -1)
             LOG_ERROR("RENDER", "failed to find uniform %-25s shader: %s", uniform, shader->name.data);
 
-        array_push(&shader->uniforms, builder_from_cstring(uniform, shader->allocator));
+        array_push(&shader->uniforms, builder_from_cstring(shader->allocator, uniform));
         found = hash_index_insert(&shader->uniform_hash, hash, (u64) location);
     }
     else

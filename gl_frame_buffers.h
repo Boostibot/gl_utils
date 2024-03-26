@@ -53,7 +53,7 @@ void render_screen_frame_buffers_init(Render_Screen_Frame_Buffers* buffer, i32 w
     
     buffer->width = width;
     buffer->height = height;
-    buffer->name = builder_from_cstring("Render_Screen_Frame_Buffers", NULL);
+    buffer->name = builder_from_cstring(NULL, "Render_Screen_Frame_Buffers");
 
     //@NOTE: 
     //The lack of the following line caused me 2 hours of debugging why my application crashed due to NULL ptr 
@@ -143,7 +143,7 @@ bool render_screen_frame_buffers_msaa_init(Render_Screen_Frame_Buffers_MSAA* buf
 
     buffer->width = width;
     buffer->height = height;
-    buffer->name = builder_from_cstring("Render_Screen_Frame_Buffers_MSAA", NULL);
+    buffer->name = builder_from_cstring(NULL, "Render_Screen_Frame_Buffers_MSAA");
 
     bool state = true;
     glGenFramebuffers(1, &buffer->frame_buff);
