@@ -119,7 +119,7 @@ bool compute_shader_init(Render_Shader* shader, const char* source, String name,
     glCompileShader(compute);
     if(!shader_check_compile_error(compute, SHADER_COMPILATION_COMPILE, error_string))
     {
-        LOG_ERROR(SHADER_UTIL_CHANEL, "error compiling compute shader named '%s'", string_escape_ephemeral(name));
+        LOG_ERROR(SHADER_UTIL_CHANEL, "error compiling compute shader named '%s'", cstring_ephemeral(name));
         state = false;
     }
     
@@ -131,7 +131,7 @@ bool compute_shader_init(Render_Shader* shader, const char* source, String name,
         glLinkProgram(program);
         if(!shader_check_compile_error(program, SHADER_COMPILATION_LINK, error_string))
         {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error linking compute shader named '%s'", string_escape_ephemeral(name));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "error linking compute shader named '%s'", cstring_ephemeral(name));
             state = false;
         }
     }
@@ -184,7 +184,7 @@ bool render_shader_init(Render_Shader* shader, const char* vertex, const char* f
         //Check for errors
         if(!shader_check_compile_error(shaders[i], SHADER_COMPILATION_COMPILE, &error_msg))
         {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "compiling %s shader failed '%s'", shader_types_str[i], string_escape_ephemeral(name));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "compiling %s shader failed '%s'", shader_types_str[i], cstring_ephemeral(name));
             LOG_ERROR(">" SHADER_UTIL_CHANEL, "%s", error_msg.data);
             state = false;
         }
@@ -201,7 +201,7 @@ bool render_shader_init(Render_Shader* shader, const char* vertex, const char* f
         glLinkProgram(shader_program);
         if(!shader_check_compile_error(shader_program, SHADER_COMPILATION_LINK, &error_msg))
         {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "linking shader failed '%s'", string_escape_ephemeral(name));
+            LOG_ERROR(SHADER_UTIL_CHANEL, "linking shader failed '%s'", cstring_ephemeral(name));
             LOG_ERROR(">" SHADER_UTIL_CHANEL, "%s", error_msg.data);
         }
     }
@@ -330,8 +330,8 @@ bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize wor
         if(state == false)
         {
             LOG_ERROR_CHILD(SHADER_UTIL_CHANEL, "compile error", NULL, "compute_shader_init_from_disk() failed: ");
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "path: '%s'", string_escape_ephemeral(path));
-                LOG_ERROR_CHILD(">" SHADER_UTIL_CHANEL, "", NULL, "errors:", log_list.first);
+                LOG_INFO(">" SHADER_UTIL_CHANEL, "path: '%s'", cstring_ephemeral(path));
+                LOG_ERROR_CHILD(">" SHADER_UTIL_CHANEL, "", log_list.first, "errors:");
         }
         else
         {
@@ -378,9 +378,9 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
         if(state == false)
         {
             LOG_ERROR_CHILD(SHADER_UTIL_CHANEL, "compile error", NULL, "render_shader_init_from_disk() failed!");
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "vertex:   '%s'", string_escape_ephemeral(vertex_path));
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "fragment: '%s'", string_escape_ephemeral(fragment_path));
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "geometry: '%s'", string_escape_ephemeral(geometry_path));
+                LOG_INFO(">" SHADER_UTIL_CHANEL, "vertex:   '%s'", cstring_ephemeral(vertex_path));
+                LOG_INFO(">" SHADER_UTIL_CHANEL, "fragment: '%s'", cstring_ephemeral(fragment_path));
+                LOG_INFO(">" SHADER_UTIL_CHANEL, "geometry: '%s'", cstring_ephemeral(geometry_path));
                 LOG_ERROR_CHILD(">" SHADER_UTIL_CHANEL, "", log_list.first, "errors:");
         }
     }
@@ -391,7 +391,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
 
 bool render_shader_init_from_disk(Render_Shader* shader, String path)
 {
-    LOG_INFO(SHADER_UTIL_CHANEL, "loading: '%s'", string_escape_ephemeral(path));
+    LOG_INFO(SHADER_UTIL_CHANEL, "loading: '%s'", cstring_ephemeral(path));
 
     PERF_COUNTER_START();
     bool state = true;
@@ -423,7 +423,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
         if(state == false)
         {
             LOG_ERROR_CHILD(SHADER_UTIL_CHANEL, "compile error", NULL, "render_shader_init_from_disk() failed: ");
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "path: '%s'", string_escape_ephemeral(path));
+                LOG_INFO(">" SHADER_UTIL_CHANEL, "path: '%s'", cstring_ephemeral(path));
                 LOG_ERROR_CHILD(">" SHADER_UTIL_CHANEL, "", log_list.first, "errors:");
         }
         
