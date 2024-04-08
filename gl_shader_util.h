@@ -301,7 +301,7 @@ bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize wor
     work_group_y = MIN(work_group_y, limits.max_group_size[1]);
     work_group_z = MIN(work_group_z, limits.max_group_size[2]);
 
-    String name = path_get_name_from_path(path);
+    String name = path_get_filename_without_extension(path_parse(path));
     String prepend = format_ephemeral(
         "\n #define CUSTOM_DEFINES"
         "\n #define WORK_GROUP_SIZE_X %lli"
@@ -358,7 +358,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
         String_Builder fragment_source = builder_make(&arena.allocator, 0);
         String_Builder geometry_source = builder_make(&arena.allocator, 0);
         
-        String name = path_get_name_from_path(fragment_path);
+        String name = path_get_filename_without_extension(path_parse(fragment_path));
         bool vertex_state = file_read_entire(vertex_path, &vertex_source);
         bool fragment_state = file_read_entire(fragment_path, &fragment_source);
         bool geometry_state = true;
@@ -402,7 +402,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
 
         String_Builder source_text = builder_make(&arena.allocator, 0);
 
-        String name = path_get_name_from_path(path);
+        String name = path_get_filename_without_extension(path_parse(path));
         state = state && file_read_entire(path, &source_text);
         String source = source_text.string;
         
