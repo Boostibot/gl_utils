@@ -168,7 +168,7 @@ bool render_shader_init(Render_Shader* shader, const char* vertex, const char* f
     const char* shader_sources[3] = {vertex, fragment, geometry};
     bool has_geometry = geometry != NULL && strlen(geometry) != 0;
 
-    Arena arena = scratch_arena_acquire();
+    Arena_Frame arena = scratch_arena_acquire();
     String_Builder error_msg = builder_make(&arena.allocator, 0); 
 
     for(i32 i = 0; i < 3; i++)
@@ -219,7 +219,7 @@ bool render_shader_init(Render_Shader* shader, const char* vertex, const char* f
     else
         glDeleteProgram(shader_program);
     
-    arena_release(&arena);
+    arena_frame_release(&arena);
     PERF_COUNTER_END();
 
     return state;
@@ -312,7 +312,7 @@ bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize wor
         );
     
     bool state = true;
-    Arena arena = scratch_arena_acquire();
+    Arena_Frame arena = scratch_arena_acquire();
     {
         Log_List log_list = {0};
         log_list_init_capture(&log_list, &arena.allocator);
@@ -340,7 +340,7 @@ bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize wor
             shader->work_group_size_z = (i32) work_group_z;
         }
     }
-    arena_release(&arena);
+    arena_frame_release(&arena);
 
     return state;
 }
@@ -349,7 +349,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
 {
     PERF_COUNTER_START();
     bool state = true;
-    Arena arena = scratch_arena_acquire();
+    Arena_Frame arena = scratch_arena_acquire();
     {
         Log_List log_list = {0};
         log_list_init_capture(&log_list, &arena.allocator);
@@ -384,7 +384,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
                 LOG_ERROR_CHILD(">" SHADER_UTIL_CHANEL, "", log_list.first, "errors:");
         }
     }
-    arena_release(&arena);
+    arena_frame_release(&arena);
     PERF_COUNTER_END();
     return state;
 }
@@ -395,7 +395,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
 
     PERF_COUNTER_START();
     bool state = true;
-    Arena arena = scratch_arena_acquire();
+    Arena_Frame arena = scratch_arena_acquire();
     {
         Log_List log_list = {0};
         log_list_init_capture(&log_list, &arena.allocator);
@@ -428,7 +428,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
         }
         
     }
-    arena_release(&arena);
+    arena_frame_release(&arena);
     PERF_COUNTER_END();
     return state;
 }
