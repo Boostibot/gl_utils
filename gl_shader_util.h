@@ -468,7 +468,7 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
 {
     PERF_COUNTER_START();
     GLint location = 0;
-    String uniform_str = string_make(uniform);
+    String uniform_str = string_of(uniform);
     u64 hash = hash64_murmur(uniform_str.data, uniform_str.size, 0);
     isize found = hash_index_find(shader->uniform_hash, hash);
 
