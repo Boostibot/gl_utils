@@ -154,7 +154,7 @@ bool compute_shader_init(Render_Shader* shader, const char* source, String name,
 
 bool render_shader_init(Render_Shader* shader, const char* vertex, const char* fragment, const char* geometry, String name)
 {
-    PERF_COUNTER_START();
+    PROFILE_START();
     
     render_shader_deinit(shader);
     ASSERT(vertex != NULL && fragment != NULL);
@@ -220,7 +220,7 @@ bool render_shader_init(Render_Shader* shader, const char* vertex, const char* f
         glDeleteProgram(shader_program);
     
     arena_frame_release(&arena);
-    PERF_COUNTER_END();
+    PROFILE_END();
 
     return state;
 }
@@ -347,7 +347,7 @@ bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize wor
 
 bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_path, String fragment_path, String geometry_path)
 {
-    PERF_COUNTER_START();
+    PROFILE_START();
     bool state = true;
     Arena_Frame arena = scratch_arena_acquire();
     {
@@ -385,7 +385,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
         }
     }
     arena_frame_release(&arena);
-    PERF_COUNTER_END();
+    PROFILE_END();
     return state;
 }
 
@@ -393,7 +393,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
 {
     LOG_INFO(SHADER_UTIL_CHANEL, "loading: '%s'", cstring_ephemeral(path));
 
-    PERF_COUNTER_START();
+    PROFILE_START();
     bool state = true;
     Arena_Frame arena = scratch_arena_acquire();
     {
@@ -429,7 +429,7 @@ bool render_shader_init_from_disk(Render_Shader* shader, String path)
         
     }
     arena_frame_release(&arena);
-    PERF_COUNTER_END();
+    PROFILE_END();
     return state;
 }
 
@@ -466,10 +466,10 @@ void compute_shader_dispatch(Render_Shader* compute_shader, isize size_x, isize 
 
 GLint render_shader_get_uniform_location(Render_Shader* shader, const char* uniform)
 {
-    PERF_COUNTER_START();
+    PROFILE_START();
     GLint location = 0;
     String uniform_str = string_of(uniform);
-    u64 hash = hash64_murmur(uniform_str.data, uniform_str.size, 0);
+    u64 hash = xxhash64(uniform_str.data, uniform_str.size, 0);
     isize found = hash_index_find(shader->uniform_hash, hash);
 
     if(found == -1)
@@ -495,14 +495,14 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
         for(isize i = 0; i < shader->uniforms.size; i++)
         {
             String_Builder* curr_uniform = &shader->uniforms.data[i];
-            u64 curr_hash = hash64_murmur(curr_uniform->data, curr_uniform->size, 0);
+            u64 curr_hash = xxhash64(curr_uniform->data, curr_uniform->size, 0);
             if(curr_hash == hash && string_is_equal(curr_uniform->string, uniform_str) == false)
                 LOG_DEBUG("RENDER", "uniform %s hash coliding with uniform %s in shader %s", uniform, curr_uniform->data, shader->name.data);
         }
     }
     #endif
     
-    PERF_COUNTER_END();
+    PROFILE_END();
 
     return location;
 }
