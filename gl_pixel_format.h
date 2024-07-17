@@ -16,13 +16,19 @@ GL_Pixel_Format gl_pixel_format_from_pixel_type(Pixel_Type pixel_format, isize c
     GL_Pixel_Format error_format = {0};
     
     GL_Pixel_Format out = {0};
-    
+
+    //This is so fucked
+    bool is_int = true;
+    if(pixel_format == PIXEL_TYPE_F64 || pixel_format == PIXEL_TYPE_F32 || pixel_format == PIXEL_TYPE_F16 || pixel_format == PIXEL_TYPE_F8
+        || pixel_format == PIXEL_TYPE_U16 || pixel_format == PIXEL_TYPE_U8 || pixel_format == PIXEL_TYPE_I16 || pixel_format == PIXEL_TYPE_I8)
+        is_int = false;
+
     switch(channels)
     {
-        case 1: out.access_format = GL_RED; break;
-        case 2: out.access_format =  GL_RG; break;
-        case 3: out.access_format =  GL_RGB; break;
-        case 4: out.access_format =  GL_RGBA; break;
+        case 1: out.access_format = is_int ? GL_RED_INTEGER : GL_RED; break;
+        case 2: out.access_format = is_int ? GL_RG_INTEGER : GL_RG; break;
+        case 3: out.access_format = is_int ? GL_RGB_INTEGER : GL_RGB; break;
+        case 4: out.access_format = is_int ? GL_RGBA_INTEGER : GL_RGBA; break;
         
         default: return error_format;
     }
@@ -38,7 +44,6 @@ GL_Pixel_Format gl_pixel_format_from_pixel_type(Pixel_Type pixel_format, isize c
                 case 4: out.internal_format = GL_RGBA ## POSTFIX; break; \
             } \
         } break \
-
 
     switch(pixel_format)
     {
