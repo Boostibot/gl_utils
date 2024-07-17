@@ -84,7 +84,7 @@ bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, S
             if(error != NULL)
             {
                 builder_resize(error, 1024);
-                glGetProgramInfoLog(shader, (GLsizei) error->size, NULL, error->data);
+                glGetProgramInfoLog(shader, (GLsizei) error->len, NULL, error->data);
                 builder_resize(error, (isize) strlen(error->data));
             }
         }
@@ -97,7 +97,7 @@ bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, S
             if(error != NULL)
             {
                 builder_resize(error, 1024);
-                glGetShaderInfoLog(shader, (GLsizei) error->size, NULL, error->data);
+                glGetShaderInfoLog(shader, (GLsizei) error->len, NULL, error->data);
                 builder_resize(error, (isize) strlen(error->data));
             }
         }
@@ -228,7 +228,7 @@ bool render_shader_init(Render_Shader* shader, const char* vertex, const char* f
 String_Builder render_shader_source_prepend(String data, String prepend, Allocator* allocator)
 {
     String_Builder composed = {allocator};
-    if(prepend.size == 0 || data.size == 0)
+    if(prepend.len == 0 || data.len == 0)
     {
         builder_append(&composed, data);
     }
@@ -242,15 +242,15 @@ String_Builder render_shader_source_prepend(String data, String prepend, Allocat
         //if it does start just after the next line break
         else
         {
-            ASSERT(version_i <= data.size);
+            ASSERT(version_i <= data.len);
             after_version = string_find_first_char(data, '\n', version_i);
             if(after_version == -1)
-                after_version = data.size - 1;
+                after_version = data.len - 1;
 
             after_version += 1;
         }
             
-        ASSERT(after_version <= data.size);
+        ASSERT(after_version <= data.len);
 
         String before_insertion = string_head(data, after_version);
         String after_insertion = string_tail(data, after_version);
@@ -355,7 +355,7 @@ bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_pat
         bool fragment_state = file_read_entire(fragment_path, &fragment_source, log_error(SHADER_UTIL_CHANEL));
         bool geometry_state = true;
 
-        if(geometry_path.size > 0)
+        if(geometry_path.len > 0)
             geometry_state = file_read_entire(geometry_path, &geometry_source, log_error(SHADER_UTIL_CHANEL));
 
         state = vertex_state && fragment_state && geometry_state;
@@ -455,7 +455,7 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
     PROFILE_START();
     GLint location = 0;
     String uniform_str = string_of(uniform);
-    u64 hash = xxhash64(uniform_str.data, uniform_str.size, 0);
+    u64 hash = xxhash64(uniform_str.data, uniform_str.len, 0);
     isize found = hash_index_find(shader->uniform_hash, hash);
 
     if(found == -1)
@@ -478,10 +478,10 @@ GLint render_shader_get_uniform_location(Render_Shader* shader, const char* unif
     if(random <= shader->check_probabiity)
     {
         //LOG_DEBUG("RENDER", "Checking uniform %-25s for collisions shader: %s", uniform, shader->name.data);
-        for(isize i = 0; i < shader->uniforms.size; i++)
+        for(isize i = 0; i < shader->uniforms.len; i++)
         {
             String_Builder* curr_uniform = &shader->uniforms.data[i];
-            u64 curr_hash = xxhash64(curr_uniform->data, curr_uniform->size, 0);
+            u64 curr_hash = xxhash64(curr_uniform->data, curr_uniform->len, 0);
             if(curr_hash == hash && string_is_equal(curr_uniform->string, uniform_str) == false)
                 LOG_DEBUG("RENDER", "uniform %s hash coliding with uniform %s in shader %s", uniform, curr_uniform->data, shader->name.data);
         }
