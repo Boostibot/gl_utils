@@ -523,7 +523,7 @@ bool render_shader_set_vec3(Render_Shader* shader, const char* name, Vec3 val)
     if(location == -1)
         return false;
 
-    glUniform3fv(location, 1, AS_FLOATS(val));
+    glUniform3fv(location, 1, val.floats);
     return true;
 }
 
@@ -534,7 +534,7 @@ bool render_shader_set_mat4(Render_Shader* shader, const char* name, Mat4 val)
     if(location == -1)
         return false;
 
-    glUniformMatrix4fv(location, 1, GL_FALSE, AS_FLOATS(val));
+    glUniformMatrix4fv(location, 1, GL_FALSE, val.floats);
     return true;
 }
     
@@ -545,6 +545,6 @@ bool render_shader_set_mat3(Render_Shader* shader, const char* name, Mat3 val)
     if(location == -1)
         return false;
 
-    glUniformMatrix3fv(location, 1, GL_FALSE, AS_FLOATS(val));
+    glUniformMatrix3fv(location, 1, GL_FALSE, val.floats);
     return true;
 }
