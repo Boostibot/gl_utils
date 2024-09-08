@@ -1,276 +1,149 @@
 #pragma once
-
-#include "../lib/file.h"
-#include "../lib/hash_index.h"
-#include "../lib/random.h"
-#include "../lib/math.h"
-#include "../lib/arena.h"
-#include "../lib/vformat.h"
-#include "../lib/hash.h"
-
+#include <stdint.h>
+#include <stdbool.h>
 #include "gl.h"
-
-#define SHADER_UTIL_CHANEL "SHADER"
 
 typedef enum {
     SHADER_TYPE_RENDER,
     SHADER_TYPE_COMPUTE,
 } Shader_Type;
 
-typedef enum {
-    SHADER_COMPILATION_COMPILE,
-    SHADER_COMPILATION_LINK,
-} Shader_Comiplation;
+typedef struct GL_Shader {
+    GLuint handle;
 
-typedef struct Render_Shader
+    char name[64];
+
+    int32_t block_size_size_x;
+    int32_t block_size_size_y;
+    int32_t block_size_size_z;
+} GL_Shader;
+
+enum {MAX_SHADER_STAGES = 7};
+typedef struct Shader_Errors {
+    const char* sources[MAX_SHADER_STAGES];
+    const char* stage_names[MAX_SHADER_STAGES];
+    GLuint      stages[MAX_SHADER_STAGES];
+    int _;
+    union {
+        const char* errors[MAX_SHADER_STAGES];
+        struct {
+            const char* link;  
+            const char* vertex;  
+            const char* fragment;  
+            const char* geometry;  
+            const char* compute;  
+            const char* tess_control;  
+            const char* tess_eval;  
+        };
+    };
+
+    char        data[4096];
+} Shader_Errors;
+
+const char* shader_stage_to_string(GLuint stage)
 {
-    Allocator* allocator;
-
-    // Uses 32bit hash to cache uniform locations.
-    // We dont do any hash colision resolutiion and instead
-    // check with check_probabiity by iterating over all 
-    // uniforms that there are no hash collisions. 
-    // This is about twice as fast as querrying using opengl.
-    //
-    // Should a collision occur we will simply change the uniform
-    // (or change the seed)
-    Hash_Index uniform_hash;
-    String_Builder_Array uniforms;
-    f64 check_probabiity;
-
-    GLuint shader;
-    u32 _padding;
-    String_Builder name;
-    Shader_Type type;
-
-    i32 work_group_size_x;
-    i32 work_group_size_y;
-    i32 work_group_size_z;
-} Render_Shader;
-
-void render_shader_deinit(Render_Shader* shader)
-{
-    if(shader->shader != 0)
+    switch(stage)
     {
-        glUseProgram(0);
-        glDeleteProgram(shader->shader);
+        case GL_LINK_STATUS:            return "link";
+        case GL_VERTEX_SHADER:          return "vertex";
+        case GL_FRAGMENT_SHADER:        return "fragment";
+        case GL_GEOMETRY_SHADER:        return "geometry";
+        case GL_COMPUTE_SHADER:         return "compute";
+        case GL_TESS_CONTROL_SHADER:    return "tesselation-control";
+        case GL_TESS_EVALUATION_SHADER: return "tesselation-eval";
+        default:                        return "<invalid>";
     }
-    builder_deinit(&shader->name);
-    hash_index_deinit(&shader->uniform_hash);
-    builder_array_deinit(&shader->uniforms);
-    memset(shader, 0, sizeof(*shader));
 }
 
-
-void render_shader_preinit(Render_Shader* shader, Allocator* alloc, String name)
+GLuint shader_compile(const char* sources[], GLuint shader_stages[], int sources_count, Shader_Errors* errors)
 {
-    render_shader_deinit(shader);
+    if(sources_count > MAX_SHADER_STAGES)
+        return 0;
 
-    if(alloc == NULL)
-        alloc = allocator_get_default();
+    if(errors)
+        memset(errors, 0, sizeof *errors);
 
-    shader->allocator = alloc;
-    shader->check_probabiity = 1.0 / 10000;
-    shader->name = builder_from_string(alloc, name);
-    array_init(&shader->uniforms, alloc);
-    hash_index_init(&shader->uniform_hash, alloc);
-}
-
-bool shader_check_compile_error(GLuint shader, Shader_Comiplation compilation, String_Builder* error)
-{
-    int  success = true;
-    if(compilation == SHADER_COMPILATION_LINK)
+    GLuint shaders[MAX_SHADER_STAGES] = {0};
+    int okay = true;
+    size_t error_messages_from = 0;
+    for(int i = 0; i < sources_count; i++)
     {
-        glGetProgramiv(shader, GL_LINK_STATUS, &success);
-        if(!success)
-        {
-            if(error != NULL)
-            {
-                builder_resize(error, 1024);
-                glGetProgramInfoLog(shader, (GLsizei) error->len, NULL, error->data);
-                builder_resize(error, (isize) strlen(error->data));
-            }
-        }
-    }
-    else
-    {
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-        if(!success)
-        {
-            if(error != NULL)
-            {
-                builder_resize(error, 1024);
-                glGetShaderInfoLog(shader, (GLsizei) error->len, NULL, error->data);
-                builder_resize(error, (isize) strlen(error->data));
-            }
-        }
-    }
-    
-
-    return (bool) success;
-}
-
-bool compute_shader_init(Render_Shader* shader, const char* source, String name, String_Builder* error_string)
-{
-    bool state = true;
-    render_shader_deinit(shader);
-
-    GLuint program = 0;
-    GLuint compute = glCreateShader(GL_COMPUTE_SHADER);
-    glShaderSource(compute, 1, &source, NULL);
-    glCompileShader(compute);
-    if(!shader_check_compile_error(compute, SHADER_COMPILATION_COMPILE, error_string))
-    {
-        LOG_ERROR(SHADER_UTIL_CHANEL, "error compiling compute shader named '%.*s'", STRING_PRINT(name));
-        state = false;
-    }
-    
-    if(state)
-    { 
-        // shader Program
-        program = glCreateProgram();
-        glAttachShader(program, compute);
-        glLinkProgram(program);
-        if(!shader_check_compile_error(program, SHADER_COMPILATION_LINK, error_string))
-        {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "error linking compute shader named '%.*s'", STRING_PRINT(name));
-            state = false;
-        }
-    }
-    // delete the shaders as they're linked into our program now and no longer necessary
-    glDeleteShader(compute);
-
-    if(state)
-    { 
-        render_shader_preinit(shader, NULL, name);
-        shader->shader = program;
-        shader->type = SHADER_TYPE_COMPUTE;
-    }
-    else
-    {
-        glDeleteProgram(program);
-    }
-
-    return state;
-}
-
-bool render_shader_init(Render_Shader* shader, const char* vertex, const char* fragment, const char* geometry, String name)
-{
-    PROFILE_START();
-    
-    render_shader_deinit(shader);
-    ASSERT(vertex != NULL && fragment != NULL);
-
-    bool state = true;
-    
-    GLuint shader_program = 0;
-    GLuint shader_types[3] = {GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, GL_GEOMETRY_SHADER};
-    GLuint shaders[3] = {0};
-    const char* shader_types_str[3] = {"vertex", "fragment", "geometry"};
-    const char* shader_sources[3] = {vertex, fragment, geometry};
-    bool has_geometry = geometry != NULL && strlen(geometry) != 0;
-
-    Arena_Frame arena = scratch_arena_acquire();
-    String_Builder error_msg = builder_make(arena.alloc, 0); 
-
-    for(i32 i = 0; i < 3; i++)
-    {
-        //geometry shader doesnt have to exist
-        if(shader_types[i] == GL_GEOMETRY_SHADER && has_geometry == false)
-            break;
-
-        shaders[i] = glCreateShader(shader_types[i]);
-        glShaderSource(shaders[i], 1, &shader_sources[i], NULL);
+        GLuint stage = shader_stages[i];
+        shaders[i] = glCreateShader(shader_stages[i]);
+        glShaderSource(shaders[i], 1, &sources[i], NULL);
         glCompileShader(shaders[i]);
 
-        //Check for errors
-        if(!shader_check_compile_error(shaders[i], SHADER_COMPILATION_COMPILE, &error_msg))
+        int success = true;
+        glGetShaderiv(shaders[i], GL_COMPILE_STATUS, &success);
+        if(errors && !success && error_messages_from < sizeof(errors->data))
         {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "compiling %s shader failed '%.*s'", shader_types_str[i], STRING_PRINT(name));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "%s", error_msg.data);
-            state = false;
+            int index = 0;
+            switch(stage)
+            {
+                default:                        index = 0; break;
+                case GL_VERTEX_SHADER:          index = 1; break;
+                case GL_FRAGMENT_SHADER:        index = 2; break;
+                case GL_GEOMETRY_SHADER:        index = 3; break;
+                case GL_COMPUTE_SHADER:         index = 4; break;
+                case GL_TESS_CONTROL_SHADER:    index = 5; break;
+                case GL_TESS_EVALUATION_SHADER: index = 6; break;
+            }
+
+            glGetShaderInfoLog(shaders[i], (GLsizei) (sizeof(errors->data) - error_messages_from), NULL, errors->data + error_messages_from);
+            errors->errors[index] = errors->data + error_messages_from;
+            errors->stages[index] = stage;
+            errors->sources[index] = sources[i];
+            errors->stage_names[index] = shader_stage_to_string(stage);
+
+            error_messages_from += strlen(errors->errors[index]) + 1;
         }
+
+        okay = okay && success;
     }
+
+    GLuint pogram = 0;
+    if(okay)
+    {
+        pogram = glCreateProgram();
+        for(int i = 0; i < sources_count; i++)
+            glAttachShader(pogram, shaders[i]);
         
-    if(state)
-    {
-        shader_program = glCreateProgram();
-        glAttachShader(shader_program, shaders[0]);
-        glAttachShader(shader_program, shaders[1]);
-        if(has_geometry)
-            glAttachShader(shader_program, shaders[2]);
-            
-        glLinkProgram(shader_program);
-        if(!shader_check_compile_error(shader_program, SHADER_COMPILATION_LINK, &error_msg))
+        glLinkProgram(pogram);
+
+        int success = true;
+        glGetProgramiv(pogram, GL_LINK_STATUS, &success);
+        if(errors && !success && error_messages_from < sizeof(errors->data))
         {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "linking shader failed '%.*s'", STRING_PRINT(name));
-            LOG_ERROR(">" SHADER_UTIL_CHANEL, "%s", error_msg.data);
+            glGetProgramInfoLog(pogram, (GLsizei) (sizeof(errors->data) - error_messages_from), NULL, errors->data + error_messages_from);
+            errors->errors[0] = errors->data + error_messages_from;
+            errors->stages[0] = GL_LINK_STATUS;
+            errors->stage_names[0] = shader_stage_to_string(GL_LINK_STATUS);
         }
     }
-
-    glDeleteShader(shaders[0]);
-    glDeleteShader(shaders[1]);
-    glDeleteShader(shaders[2]);
-
-    if(state)
-    {
-        render_shader_preinit(shader, NULL, name);
-        shader->shader = shader_program;
-        shader->type = SHADER_TYPE_RENDER;
-    }
-    else
-        glDeleteProgram(shader_program);
     
-    arena_frame_release(&arena);
-    PROFILE_END();
+    for(int i = 0; i < sources_count; i++)
+        glDeleteShader(shaders[i]);
 
-    return state;
+    return pogram;
 }
 
-
-String_Builder render_shader_source_prepend(String data, String prepend, Allocator* allocator)
+GLuint shader_compile_render(const char* vertex, const char* fragment, const char* geometry_or_null, Shader_Errors* errors_or_null)
 {
-    String_Builder composed = {allocator};
-    if(prepend.len == 0 || data.len == 0)
-    {
-        builder_append(&composed, data);
-    }
-    else
-    {
-        isize version_i = string_find_first(data, STRING("#version"), 0);
-        isize after_version = 0;
-        //if it contains no version directive start at start
-        if(version_i == -1)
-            after_version = 0;
-        //if it does start just after the next line break
-        else
-        {
-            ASSERT(version_i <= data.len);
-            after_version = string_find_first_char(data, '\n', version_i);
-            if(after_version == -1)
-                after_version = data.len - 1;
-
-            after_version += 1;
-        }
-            
-        ASSERT(after_version <= data.len);
-
-        String before_insertion = string_head(data, after_version);
-        String after_insertion = string_tail(data, after_version);
-        builder_append(&composed, before_insertion);
-        builder_append(&composed, prepend);
-        builder_append(&composed, STRING("\n"));
-        builder_append(&composed, after_insertion);
-    }
-
-    return composed;
+    const char* sources[] = {vertex, fragment, geometry_or_null};
+    GLuint shader_types[] = {GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, GL_GEOMETRY_SHADER};
+    return shader_compile(sources, shader_types, geometry_or_null ? 3 : 2, errors_or_null);
 }
 
+GLuint shader_compile_compute(const char* source, Shader_Errors* errors_or_null)
+{
+    GLuint shader_type = GL_COMPUTE_SHADER;
+    return shader_compile(&source, &shader_type, 1, errors_or_null);
+}
 
-typedef struct {
-    i32 max_group_invocations;
-    i32 max_group_count[3];
-    i32 max_group_size[3];
+typedef struct Compute_Shader_Limits {
+    int32_t max_group_invocations;
+    int32_t max_group_count[3];
+    int32_t max_group_size[3];
 } Compute_Shader_Limits;
 
 Compute_Shader_Limits compute_shader_query_limits()
@@ -278,7 +151,7 @@ Compute_Shader_Limits compute_shader_query_limits()
     static Compute_Shader_Limits querried = {-1};
     if(querried.max_group_invocations < 0)
     {
-        STATIC_ASSERT(sizeof(GLint) == sizeof(i32));
+        STATIC_ASSERT(sizeof(GLint) == sizeof(int32_t));
 	    for (GLuint i = 0; i < 3; i++) 
         {
 		    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, i, &querried.max_group_count[i]);
@@ -295,211 +168,44 @@ Compute_Shader_Limits compute_shader_query_limits()
     return querried;
 }
 
-bool compute_shader_init_from_disk(Render_Shader* shader, String path, isize work_group_x, isize work_group_y, isize work_group_z)
+static const GL_Shader* current_used_shader = NULL;
+static GLuint current_used_shader_handle = 0;
+void render_shader_use(const GL_Shader* shader)
 {
-    bool state = true;
-    PROFILE_START();
-    SCRATCH_ARENA(arena)
+    ASSERT(shader->handle != 0);
+    if(shader->handle != current_used_shader_handle)
     {
-        Compute_Shader_Limits limits = compute_shader_query_limits();
-        work_group_x = MIN(work_group_x, limits.max_group_size[0]);
-        work_group_y = MIN(work_group_y, limits.max_group_size[1]);
-        work_group_z = MIN(work_group_z, limits.max_group_size[2]);
-
-        String name = path_get_filename_without_extension(path_parse(path));
-        String prepend = format(arena.alloc,
-            "\n #define CUSTOM_DEFINES"
-            "\n #define WORK_GROUP_SIZE_X %lli"
-            "\n #define WORK_GROUP_SIZE_Y %lli"
-            "\n #define WORK_GROUP_SIZE_Z %lli"
-            "\n",
-            work_group_x, work_group_y, work_group_z
-        ).string;
-    
-        String_Builder source = builder_make(arena.alloc, 0);
-        state = state && file_read_entire(path, &source, log_error("SHADER"));
-
-        String_Builder prepended_source = render_shader_source_prepend(source.string, prepend, arena.alloc);
-        String_Builder error_string = builder_make(arena.alloc, 0);
-
-        LOG_DEBUG(SHADER_UTIL_CHANEL, "Compute shader source:\n%s", prepended_source.data);
-        state = state && compute_shader_init(shader, prepended_source.data, name, &error_string);
-
-
-        if(state == false)
-        {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "compile error! render_shader_init_from_disk() failed!");
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "path: '%.*s'", STRING_PRINT(path));
-        }
-        else
-        {
-            shader->work_group_size_x = (i32) work_group_x;
-            shader->work_group_size_y = (i32) work_group_y;
-            shader->work_group_size_z = (i32) work_group_z;
-        }
-    }
-    PROFILE_END();
-
-    return state;
-}
-
-bool render_shader_init_from_disk_split(Render_Shader* shader, String vertex_path, String fragment_path, String geometry_path)
-{
-    PROFILE_START();
-    bool state = true;
-    SCRATCH_ARENA(arena)
-    {
-        String_Builder vertex_source = builder_make(arena.alloc, 0);
-        String_Builder fragment_source = builder_make(arena.alloc, 0);
-        String_Builder geometry_source = builder_make(arena.alloc, 0);
-        
-        String name = path_get_filename_without_extension(path_parse(fragment_path));
-        bool vertex_state = file_read_entire(vertex_path, &vertex_source, log_error(SHADER_UTIL_CHANEL));
-        bool fragment_state = file_read_entire(fragment_path, &fragment_source, log_error(SHADER_UTIL_CHANEL));
-        bool geometry_state = true;
-
-        if(geometry_path.len > 0)
-            geometry_state = file_read_entire(geometry_path, &geometry_source, log_error(SHADER_UTIL_CHANEL));
-
-        state = vertex_state && fragment_state && geometry_state;
-        state = state &&render_shader_init(shader,
-            vertex_source.data,
-            fragment_source.data,
-            geometry_source.data,
-            name);
-            
-        if(state == false)
-        {
-            LOG_ERROR(SHADER_UTIL_CHANEL, "compile error! render_shader_init_from_disk() failed!");
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "vertex:   '%.*s'", STRING_PRINT(vertex_path));
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "fragment: '%.*s'", STRING_PRINT(fragment_path));
-                LOG_INFO(">" SHADER_UTIL_CHANEL, "geometry: '%.*s'", STRING_PRINT(geometry_path));
-        }
-    }
-    PROFILE_END();
-    return state;
-}
-
-bool render_shader_init_from_disk(Render_Shader* shader, String path)
-{
-    LOG_INFO(SHADER_UTIL_CHANEL, "loading: '%.*s'", STRING_PRINT(path));
-
-    PROFILE_START();
-    bool state = true;
-    Arena_Frame arena = scratch_arena_acquire();
-    {
-
-        String_Builder source_text = builder_make(arena.alloc, 0);
-
-        String name = path_get_filename_without_extension(path_parse(path));
-        state = state && file_read_entire(path, &source_text, log_error(SHADER_UTIL_CHANEL));
-        String source = source_text.string;
-        
-        String_Builder vertex_source = render_shader_source_prepend(source, STRING("#define VERT"), arena.alloc);
-        String_Builder fragment_source = render_shader_source_prepend(source, STRING("#define FRAG"), arena.alloc);
-        String_Builder geometry_source = builder_make(arena.alloc, 0);
-
-        if(string_find_first(source, STRING("#ifdef GEOM"), 0) != -1)
-            geometry_source = render_shader_source_prepend(source, STRING("#define GEOM"), arena.alloc);
-
-        state = state && render_shader_init(shader,
-            vertex_source.data,
-            fragment_source.data,
-            geometry_source.data,
-            name);
-
-        if(state == false)
-        {
-            //LOG_ERROR_CHILD(SHADER_UTIL_CHANEL, "compile error", NULL, "render_shader_init_from_disk() failed: ");
-                //LOG_INFO(">" SHADER_UTIL_CHANEL, "path: '%s'", cstring_ephemeral(path));
-                //LOG_ERROR_CHILD(">" SHADER_UTIL_CHANEL, "", log_list.first, "errors:");
-        }
-        
-    }
-    arena_frame_release(&arena);
-    PROFILE_END();
-    return state;
-}
-
-static GLuint current_used_shader = 0;
-void render_shader_use(const Render_Shader* shader)
-{
-    ASSERT(shader->shader != 0);
-    if(shader->shader != current_used_shader)
-    {
-        glUseProgram(shader->shader);
-        current_used_shader = shader->shader;
+        glUseProgram(shader->handle);
+        current_used_shader = shader;
+        current_used_shader_handle = shader->handle;
     }
 }
 
-void render_shader_unuse(const Render_Shader* shader)
+void render_shader_unuse(const GL_Shader* shader)
 {
-    ASSERT(shader->shader != 0);
-    if(current_used_shader != 0)
+    ASSERT(shader->handle != 0);
+    if(current_used_shader_handle != 0)
     {
         glUseProgram(0);
-        current_used_shader = 0;
+        current_used_shader = NULL;
+        current_used_shader_handle = 0;
     }
 }
 
-void compute_shader_dispatch(Render_Shader* compute_shader, isize size_x, isize size_y, isize size_z)
+void compute_shader_dispatch(GL_Shader* compute_shader, isize size_x, isize size_y, isize size_z)
 {
-    GLuint num_groups_x = (GLuint) MAX(DIV_CEIL(size_x, compute_shader->work_group_size_x), 1);
-    GLuint num_groups_y = (GLuint) MAX(DIV_CEIL(size_y, compute_shader->work_group_size_y), 1);
-    GLuint num_groups_z = (GLuint) MAX(DIV_CEIL(size_z, compute_shader->work_group_size_z), 1);
+    GLuint num_groups_x = (GLuint) MAX(DIV_CEIL(size_x, compute_shader->block_size_size_x), 1);
+    GLuint num_groups_y = (GLuint) MAX(DIV_CEIL(size_y, compute_shader->block_size_size_y), 1);
+    GLuint num_groups_z = (GLuint) MAX(DIV_CEIL(size_z, compute_shader->block_size_size_z), 1);
 
     render_shader_use(compute_shader);
 	glDispatchCompute(num_groups_x, num_groups_y, num_groups_z);
 }
 
-GLint render_shader_get_uniform_location(Render_Shader* shader, const char* uniform)
-{
-    PROFILE_START();
-    GLint location = 0;
-    String uniform_str = string_of(uniform);
-    u64 hash = xxhash64(uniform_str.data, uniform_str.len, 0);
-    isize found = hash_index_find(shader->uniform_hash, hash);
-
-    if(found == -1)
-    {
-        render_shader_use(shader);
-        location = glGetUniformLocation(shader->shader, uniform);
-        if(location == -1)
-            LOG_ERROR("RENDER", "failed to find uniform %-25s shader: %s", uniform, shader->name.data);
-
-        array_push(&shader->uniforms, builder_from_cstring(shader->allocator, uniform));
-        found = hash_index_insert(&shader->uniform_hash, hash, (u64) location);
-    }
-    else
-    {
-        location = (GLint) shader->uniform_hash.entries[found].value;
-    }
-
-    #ifdef DO_ASSERTS
-    f64 random = random_f64();
-    if(random <= shader->check_probabiity)
-    {
-        //LOG_DEBUG("RENDER", "Checking uniform %-25s for collisions shader: %s", uniform, shader->name.data);
-        for(isize i = 0; i < shader->uniforms.len; i++)
-        {
-            String_Builder* curr_uniform = &shader->uniforms.data[i];
-            u64 curr_hash = xxhash64(curr_uniform->data, curr_uniform->len, 0);
-            if(curr_hash == hash && string_is_equal(curr_uniform->string, uniform_str) == false)
-                LOG_DEBUG("RENDER", "uniform %s hash coliding with uniform %s in shader %s", uniform, curr_uniform->data, shader->name.data);
-        }
-    }
-    #endif
-    
-    PROFILE_END();
-
-    return location;
-}
-
-
-bool render_shader_set_i32(Render_Shader* shader, const char* name, i32 val)
+bool render_shader_set_i32(GL_Shader* shader, const char* name, i32 val)
 {
     render_shader_use(shader);
-    GLint location = render_shader_get_uniform_location(shader, name);
+    GLint location = glGetUniformLocation(shader->handle, name);
     if(location == -1) 
         return false;
 
@@ -507,10 +213,10 @@ bool render_shader_set_i32(Render_Shader* shader, const char* name, i32 val)
     return true;
 }
     
-bool render_shader_set_f32(Render_Shader* shader, const char* name, f32 val)
+bool render_shader_set_f32(GL_Shader* shader, const char* name, f32 val)
 {
     render_shader_use(shader);
-    GLint location = render_shader_get_uniform_location(shader, name);
+    GLint location = glGetUniformLocation(shader->handle, name);
     if(location == -1)
         return false;
 
@@ -518,35 +224,429 @@ bool render_shader_set_f32(Render_Shader* shader, const char* name, f32 val)
     return true;
 }
 
-bool render_shader_set_vec3(Render_Shader* shader, const char* name, Vec3 val)
+bool render_shader_set_vec3(GL_Shader* shader, const char* name, Vec3 val)
 {
     render_shader_use(shader);
-    GLint location = render_shader_get_uniform_location(shader, name);
+    GLint location = glGetUniformLocation(shader->handle, name);
     if(location == -1)
         return false;
 
     glUniform3fv(location, 1, val.floats);
     return true;
 }
-
-bool render_shader_set_mat4(Render_Shader* shader, const char* name, Mat4 val)
+    
+bool render_shader_set_mat3(GL_Shader* shader, const char* name, Mat3 val)
 {
     render_shader_use(shader);
-    GLint location = render_shader_get_uniform_location(shader, name);
+    GLint location = glGetUniformLocation(shader->handle, name);
+    if(location == -1)
+        return false;
+
+    glUniformMatrix3fv(location, 1, GL_FALSE, val.floats);
+    return true;
+}
+
+bool render_shader_set_mat4(GL_Shader* shader, const char* name, Mat4 val)
+{
+    render_shader_use(shader);
+    GLint location = glGetUniformLocation(shader->handle, name);
     if(location == -1)
         return false;
 
     glUniformMatrix4fv(location, 1, GL_FALSE, val.floats);
     return true;
 }
-    
-bool render_shader_set_mat3(Render_Shader* shader, const char* name, Mat3 val)
-{
-    render_shader_use(shader);
-    GLint location = render_shader_get_uniform_location(shader, name);
-    if(location == -1)
-        return false;
 
-    glUniformMatrix3fv(location, 1, GL_FALSE, val.floats);
-    return true;
+#include "../lib/file.h"
+#include "../lib/hash.h"
+#include "../lib/random.h"
+#include "../lib/math.h"
+#include "../lib/arena.h"
+#include "../lib/vformat.h"
+#include "../lib/hash.h"
+#include "../lib/parse.h"
+
+
+typedef struct Shader_File_Cache_Entry{
+    String_Builder contents;
+    String_Builder processed;
+    Path_Builder       full_path;
+    Platform_File_Info file_info;
+    Platform_Error     file_error;
+    bool has_version;
+    bool has_contents;
+    bool has_processed;
+    bool okay;
+    isize version_line;
+    isize version_offset;
+    isize version_after_offset;
+} Shader_File_Cache_Entry;
+
+typedef Array(Shader_File_Cache_Entry) Shader_File_Cache;
+typedef Array(Path) Path_Array;
+
+typedef struct _Shader_File_Recursion{
+    Path       relative_to;
+    Path_Array visited_paths;
+    Log        log;
+} _Shader_File_Recursion;
+
+void _source_preprocess_log(_Shader_File_Recursion* recursion, const char* format, ...)
+{
+    SCRATCH_ARENA(arena) 
+    {
+        String_Builder message = builder_make(arena.alloc, 0);
+        Path_Builder first = path_builder_make(arena.alloc, 0);
+        Path_Builder last = path_builder_make(arena.alloc, 0);
+
+        if(recursion->visited_paths.len > 0)
+            path_make_relative_into(&first, recursion->relative_to, recursion->visited_paths.data[0]);
+
+        format_append_into(&message, "'%s': ", last.data);
+
+        va_list args;
+        va_start(args, format);
+        vformat_append_into(&message, format, args);
+        va_end(args);
+        
+        if(recursion->visited_paths.len >= 2)
+        {
+            path_make_relative_into(&last, recursion->relative_to, *array_last(recursion->visited_paths));
+            format_append_into(&message, " (included from '%s')", first.data);
+        }
+
+        LOG(recursion->log, "%s", message.data);
+    }
+}
+
+#include "../lib/parse.h"
+i32 _shader_file_load_into_cache_and_handle_inclusion_recursion(Shader_File_Cache* cache, _Shader_File_Recursion* recursion, Path current_dir, Path path)
+{
+    LOG_DEBUG("SHADER", "Requested load of shader '%.*s' relative to '%.*s'",  STRING_PRINT(path), STRING_PRINT(current_dir));
+    enum {
+        MAX_RECURSION = 1000, 
+        EXPECTED_MAX_RECURSION = 20
+    };
+    
+    i32 result = -1;
+    SCRATCH_ARENA(arena) 
+    {
+        Path_Builder full_path = path_make_absolute(arena.alloc, current_dir, path);
+        Path_Builder display_path = path_make_relative(arena.alloc, recursion->relative_to, full_path.path);
+        Path full_path_directory = path_strip_to_containing_directory(full_path.path);
+        
+        array_reserve(&recursion->visited_paths, EXPECTED_MAX_RECURSION);
+        array_push(&recursion->visited_paths, full_path.path);
+
+        //Check for cyclical paths
+        bool has_cyclical_include = false;
+        for(isize i = 0; i < recursion->visited_paths.len - 1; i++)
+        {
+            Path visited = recursion->visited_paths.data[i];
+            if(path_is_equal_except_prefix(full_path.path, visited))
+            {
+                result = (i32) i;
+                String_Builder include_chain = {arena.alloc};
+                for(isize j = i; j < recursion->visited_paths.len; j++)
+                {
+                    Path curr_path = recursion->visited_paths.data[i];
+                    const char* relative = path_make_relative(arena.alloc, recursion->relative_to, curr_path).data;
+                    if(j != i)
+                        format_into(&include_chain, " -> '%s'", relative);
+                    else
+                        format_into(&include_chain, "'%s'", relative);
+                }
+
+                _source_preprocess_log(recursion, "Error: cyclical include detected! Include chain %s", include_chain.data);
+                has_cyclical_include = true;
+                break;
+            }
+        }
+        
+        if(has_cyclical_include == false)
+        {
+            //Look for full path in the cache
+            for(isize i = 0; i < cache->len; i++)
+            {
+                Shader_File_Cache_Entry* entry = &cache->data[i];
+                if(path_is_equal_except_prefix(full_path.path, entry->full_path.path))
+                {
+                    LOG_DEBUG("SHADER", "Found cached shader file '%s' has_contents:%i has_processed:%i", 
+                        display_path.data, (int) entry->has_contents, (int) entry->has_processed);
+                    
+                    result = (i32) i;
+                    break;
+                }
+            }
+        
+            //If not found add it
+            if(result == -1)
+            {
+                Shader_File_Cache_Entry new_entry = {0};
+                new_entry.full_path = path_builder_dup(cache->allocator, full_path);
+                new_entry.contents = builder_make(cache->allocator, 0);
+                new_entry.processed = builder_make(cache->allocator, 0);
+                new_entry.okay = true;
+
+                result = (i32) cache->len;
+                array_push(cache, new_entry);
+                
+                LOG_DEBUG("SHADER", "Found new shader file '%s'",  display_path.data);
+            }
+
+            //Read the entry if not read already
+            Shader_File_Cache_Entry* entry = &cache->data[result];
+            if(entry->has_contents == false && entry->file_error == 0)
+            {
+                entry->file_error = file_read_entire_into_no_log(full_path.string, &entry->contents, &entry->file_info);
+                entry->has_contents = entry->file_error == 0;
+            
+                if(entry->file_error)
+                {
+                    _source_preprocess_log(recursion, "Error: could not read file '%s': %s", display_path.data, platform_translate_error(entry->file_error));
+                    entry->okay = false;
+                }
+                else
+                    LOG_DEBUG("SHADER", "Added a new shader file '%s'", display_path.data);
+            }
+        
+            //Process the file 
+            if(entry->has_processed == false && entry->has_contents)
+            {
+                LOG_DEBUG("SHADER", "Parsing shader file '%s'", display_path.data);
+                String source = entry->contents.string;
+
+                builder_clear(&entry->processed);
+                builder_reserve(&entry->processed, source.len + 256);
+                for(Line_Iterator it = {0}; line_iterator_get_line(&it, source); )
+                {
+                    String line = it.line;
+                    isize hash_i    = string_find_first(line, STRING("#"), 0);
+                    isize version_i = hash_i + 1;
+                    isize include_i = hash_i + 1;
+                    if(hash_i != -1)
+                    {
+                        match_whitespace(line, &version_i);
+                        version_i = include_i;
+                    }
+
+                    if(hash_i != -1 && match_sequence(line, &version_i, STRING("version")))
+                    {
+                        if(entry->has_version)
+                            _source_preprocess_log(recursion, "Error: duplicate version string on line %i. Ignoring.", (int)it.line_number);
+                        else
+                        {
+                            entry->has_version = true;
+                            entry->version_line = it.line_number;
+                            entry->version_offset = entry->processed.len;
+                            builder_append_line(&entry->processed, line);
+                            entry->version_after_offset = entry->processed.len;
+                        }
+                    }
+                    else if(hash_i != -1 && match_sequence(line, &include_i, STRING("include")))
+                    {
+                        isize include_str_from = include_i;
+                        match_whitespace(line, &include_str_from);
+                        bool okay = match_char(line, &include_str_from, '"');
+                            
+                        isize include_str_to = include_str_from;
+                        okay = okay && match_any_of_custom(line, &include_str_to, STRING("\""), MATCH_INVERTED);
+                    
+                        String str = string_safe_range(line, include_str_from, include_str_to);
+                        LOG_DEBUG("SHADER", "Found include '%.*s'",  STRING_PRINT(str));
+                        
+                        Path include_path = path_parse(string_safe_range(line, include_str_from, include_str_to));
+                        if(okay == false)
+                        {
+                            entry->okay = false;
+                            _source_preprocess_log(recursion, "Error: malformed include statement '%.*s' on line %i. Ignoring.", STRING_PRINT(line), (int)it.line_number);
+                        }
+                        else if(recursion->visited_paths.len > MAX_RECURSION)
+                        {
+                            entry->okay = false;
+                            _source_preprocess_log(recursion, "Error: recursion level %i too deep while including file '%.*s' on line on line %i", 
+                                (int) recursion->visited_paths.len, STRING_PRINT(include_path.string), (int)it.line_number);
+                        }
+                        else
+                        {
+                            i32 nested_result = _shader_file_load_into_cache_and_handle_inclusion_recursion(cache, recursion, full_path_directory, include_path);
+                            Shader_File_Cache_Entry* nested_entry = &cache->data[nested_result];
+
+                            builder_append_line(&entry->processed, nested_entry->processed.string);
+                            entry->okay = entry->okay && nested_entry->okay;
+                        }
+                    }
+                    else
+                    {
+                        builder_append_line(&entry->processed, line);
+                    }
+                }
+
+                entry->has_processed = true;
+            }
+        }
+
+        array_pop(&recursion->visited_paths);
+    }
+
+    ASSERT(result != -1);
+    return result;
+}
+
+i32 shader_file_load_into_cache_and_handle_inclusion(Shader_File_Cache* cache, Path current_dir, Path path)
+{
+    i32 result = 0;
+    SCRATCH_ARENA(arena) 
+    {
+        _Shader_File_Recursion recursion = {0};
+        recursion.log = log_error("SHADER");
+        recursion.relative_to = current_dir;
+        recursion.visited_paths.allocator = arena.alloc;
+
+        result = _shader_file_load_into_cache_and_handle_inclusion_recursion(cache, &recursion, current_dir, path);
+    }
+
+    return result;
+}
+
+String_Builder shader_source_prepend(Allocator* alloc, Shader_File_Cache_Entry* entry, const String* prepends, isize prepend_count, String default_version)
+{
+    isize combined_size = 0;
+    for(isize i = 0; i < prepend_count; i++)
+        combined_size += prepends[i].len;
+
+    String preprocessed = entry->processed.string;
+    String_Builder prepended = builder_make(alloc, combined_size + preprocessed.len);
+    builder_append(&prepended, string_head(preprocessed, entry->version_after_offset));
+
+    if(entry->has_version == false)
+        builder_append_line(&prepended, default_version);
+    
+    for(isize i = 0; i < prepend_count; i++)
+        builder_append_line(&prepended, prepends[i]);
+
+    builder_append(&prepended, string_tail(preprocessed, entry->version_after_offset));
+    return prepended;
+}
+
+String_Builder add_line_numbers(Allocator* alloc, String string)
+{
+    String_Builder builder = builder_make(alloc, string.len*4/3 + 50);
+    for(Line_Iterator it = {0}; line_iterator_get_line(&it, string); )
+        format_append_into(&builder, "%4i %.*s\n", (int)it.line_number, STRING_PRINT(it.line));
+    return builder;
+}
+
+bool compute_shader_init_from_disk(Shader_File_Cache* cache, GL_Shader* shader, String path, isize block_size_x, isize block_size_y, isize block_size_z)
+{
+    bool state = true;
+    PROFILE_START();
+    SCRATCH_ARENA(arena)
+    {
+        Path path_parsed = path_parse(path);
+        i32 preprocessed_i = shader_file_load_into_cache_and_handle_inclusion(cache, path_get_current_working_directory(), path_parsed);
+        Shader_File_Cache_Entry* entry = &cache->data[preprocessed_i];
+        state = entry->okay;
+
+        if(state)
+        {
+            Compute_Shader_Limits limits = compute_shader_query_limits();
+            block_size_x = MIN(block_size_x, limits.max_group_size[0]);
+            block_size_y = MIN(block_size_y, limits.max_group_size[1]);
+            block_size_z = MIN(block_size_z, limits.max_group_size[2]);
+
+            String name = path_get_filename_without_extension(path_parsed);
+            String prepend = format(arena.alloc,
+                "\n #define CUSTOM_DEFINES"
+                "\n #define BLOCK_SIZE_X %lli"
+                "\n #define BLOCK_SIZE_Y %lli"
+                "\n #define BLOCK_SIZE_Z %lli",
+                block_size_x, block_size_y, block_size_z
+            ).string;
+    
+            String_Builder prepended = shader_source_prepend(arena.alloc, entry, &prepend, 1, STRING("#version 4.0"));
+            Shader_Errors errors = {0};
+            GLuint shader_handle = shader_compile_compute(prepended.data, &errors);
+            if(shader_handle == 0)
+            {   
+                LOG_ERROR("SHADER", "Compilation of shader '%.*s' failed with errors: \n%s\n%s", STRING_PRINT(path), errors.compute, errors.link);
+                LOG_INFO("SHADER", "Source: \n%s", add_line_numbers(arena.alloc, prepended.string).data);
+            }
+            else
+            {
+                shader->handle = shader_handle;
+                string_to_null_terminated(shader->name, sizeof(shader->name), name);
+
+                shader->block_size_size_x = (i32) block_size_x;
+                shader->block_size_size_y = (i32) block_size_y;
+                shader->block_size_size_z = (i32) block_size_z;
+            }
+        }
+    }
+    PROFILE_END();
+    ASSERT(state);
+    return state;
+}
+
+bool render_shader_init_from_disk_with_geometry(Shader_File_Cache* cache, GL_Shader* shader, String path, bool has_geometry)
+{
+    bool state = true;
+    PROFILE_START();
+    SCRATCH_ARENA(arena)
+    {
+        Path path_parsed = path_parse(path);
+        i32 preprocessed_i = shader_file_load_into_cache_and_handle_inclusion(cache, path_get_current_working_directory(), path_parsed);
+        Shader_File_Cache_Entry* entry = &cache->data[preprocessed_i];
+        state = entry->okay;
+
+        if(state)
+        {
+            String name = path_get_filename_without_extension(path_parsed);
+            
+            String vertex_prepend = STRING("#define VERT");
+            String fragment_prepend = STRING("#define FRAG");
+            String geometry_prepend = STRING("#define GEOM");
+            String version = STRING("#version 4.0");
+
+            String_Builder vertex_source = shader_source_prepend(arena.alloc, entry, &vertex_prepend, 1, version);
+            String_Builder fragment_source = shader_source_prepend(arena.alloc, entry, &fragment_prepend, 1, version);
+            String_Builder geometry_source = {0};
+            
+            if(has_geometry)
+                geometry_source = shader_source_prepend(arena.alloc, entry, &geometry_prepend, 1, version);
+
+            Shader_Errors errors = {0};
+            GLuint shader_handle = shader_compile_render(vertex_source.data, fragment_source.data, geometry_source.data, &errors);
+            if(shader_handle == 0)
+            {   
+                LOG_ERROR("SHADER", "Compilation of shader '%.*s' failed with errors: \n%s\n%s\n%s\n%s", STRING_PRINT(path), errors.vertex, errors.fragment, errors.vertex, errors.link);
+                LOG_INFO("SHADER", "Source: \n%s", add_line_numbers(arena.alloc, vertex_source.string).data);
+            }
+            else
+            {
+                shader->handle = shader_handle;
+                string_to_null_terminated(shader->name, sizeof(shader->name), name);
+            }
+        }
+    }
+    PROFILE_END();
+    ASSERT(state);
+    return state;
+}
+
+
+bool render_shader_init_from_disk(Shader_File_Cache* cache, GL_Shader* shader, String path)
+{
+    return render_shader_init_from_disk_with_geometry(cache, shader, path, false);
+}
+
+void shader_file_cache_deinit(Shader_File_Cache* file_cache)
+{
+    for(isize i = 0; i < file_cache->len; i++)
+    {
+        Shader_File_Cache_Entry* entry = &file_cache->data[i];
+        builder_deinit(&entry->contents);
+        builder_deinit(&entry->processed);
+        path_builder_deinit(&entry->full_path);
+    }
 }
