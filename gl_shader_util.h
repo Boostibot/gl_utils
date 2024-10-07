@@ -403,7 +403,7 @@ i32 _shader_file_load_into_cache_and_handle_inclusion_recursion(Shader_File_Cach
             
                 if(entry->file_error)
                 {
-                    _source_preprocess_log(recursion, "Error: could not read file '%s': %s", display_path.data, platform_translate_error(entry->file_error));
+                    _source_preprocess_log(recursion, "Error: could not read file '%s': %s", display_path.data, translate_error(arena.alloc, entry->file_error).data);
                     entry->okay = false;
                 }
                 else
@@ -544,7 +544,7 @@ bool compute_shader_init_from_disk(Shader_File_Cache* cache, GL_Shader* shader, 
     SCRATCH_ARENA(arena)
     {
         Path path_parsed = path_parse(path);
-        i32 preprocessed_i = shader_file_load_into_cache_and_handle_inclusion(cache, path_get_current_working_directory(), path_parsed);
+        i32 preprocessed_i = shader_file_load_into_cache_and_handle_inclusion(cache, path_get_startup_working_directory(), path_parsed);
         Shader_File_Cache_Entry* entry = &cache->data[preprocessed_i];
         state = entry->okay;
 
@@ -583,7 +583,7 @@ bool compute_shader_init_from_disk(Shader_File_Cache* cache, GL_Shader* shader, 
             }
         }
     }
-    PROFILE_END();
+    PROFILE_STOP();
     ASSERT(state);
     return state;
 }
@@ -595,7 +595,7 @@ bool render_shader_init_from_disk_with_geometry(Shader_File_Cache* cache, GL_Sha
     SCRATCH_ARENA(arena)
     {
         Path path_parsed = path_parse(path);
-        i32 preprocessed_i = shader_file_load_into_cache_and_handle_inclusion(cache, path_get_current_working_directory(), path_parsed);
+        i32 preprocessed_i = shader_file_load_into_cache_and_handle_inclusion(cache, path_get_startup_working_directory(), path_parsed);
         Shader_File_Cache_Entry* entry = &cache->data[preprocessed_i];
         state = entry->okay;
 
@@ -629,7 +629,7 @@ bool render_shader_init_from_disk_with_geometry(Shader_File_Cache* cache, GL_Sha
             }
         }
     }
-    PROFILE_END();
+    PROFILE_STOP();
     ASSERT(state);
     return state;
 }
