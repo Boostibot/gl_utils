@@ -265,7 +265,7 @@ bool render_shader_set_mat4(GL_Shader* shader, const char* name, Mat4 val)
 #include "../lib/vformat.h"
 #include "../lib/hash.h"
 #include "../lib/parse.h"
-
+#include "../lib/path.h"
 
 typedef struct Shader_File_Cache_Entry{
     String_Builder contents;
@@ -288,7 +288,7 @@ typedef Array(Path) Path_Array;
 typedef struct _Shader_File_Recursion{
     Path       relative_to;
     Path_Array visited_paths;
-    Log        log;
+    Logger*    log;
 } _Shader_File_Recursion;
 
 void _source_preprocess_log(_Shader_File_Recursion* recursion, const char* format, ...)
@@ -315,7 +315,7 @@ void _source_preprocess_log(_Shader_File_Recursion* recursion, const char* forma
             format_append_into(&message, " (included from '%s')", first.data);
         }
 
-        LOG(recursion->log, "%s", message.data);
+        LOGGER_LOG(recursion->log, LOG_ERROR, "SHADER", "%s", message.data);
     }
 }
 
@@ -398,7 +398,7 @@ i32 _shader_file_load_into_cache_and_handle_inclusion_recursion(Shader_File_Cach
             Shader_File_Cache_Entry* entry = &cache->data[result];
             if(entry->has_contents == false && entry->file_error == 0)
             {
-                entry->file_error = file_read_entire_into_no_log(full_path.string, &entry->contents, &entry->file_info);
+                entry->file_error = file_read_entire(full_path.string, &entry->contents, &entry->file_info);
                 entry->has_contents = entry->file_error == 0;
             
                 if(entry->file_error)
@@ -499,7 +499,7 @@ i32 shader_file_load_into_cache_and_handle_inclusion(Shader_File_Cache* cache, P
     SCRATCH_ARENA(arena) 
     {
         _Shader_File_Recursion recursion = {0};
-        recursion.log = log_error("SHADER");
+        recursion.log = log_get_logger();
         recursion.relative_to = current_dir;
         recursion.visited_paths.allocator = arena.alloc;
 
@@ -562,7 +562,7 @@ bool compute_shader_init_from_disk(Shader_File_Cache* cache, GL_Shader* shader, 
                 "\n #define BLOCK_SIZE_Y %lli"
                 "\n #define BLOCK_SIZE_Z %lli",
                 block_size_x, block_size_y, block_size_z
-            ).string;
+            );
     
             String_Builder prepended = shader_source_prepend(arena.alloc, entry, &prepend, 1, STRING("#version 4.0"));
             Shader_Errors errors = {0};
